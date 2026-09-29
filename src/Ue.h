@@ -32,6 +32,10 @@ namespace ue
 	// -1 when the struct (or its supers) has no property of that name
 	std::int32_t Offset(UE::UStruct* a_struct, std::string_view a_name);
 
+	// the offsets of every object property (the struct and its supers) whose class is a_className - e.g. "AkAudioEvent"
+	// for a widget's sound events (2026-09-29, the preview's silence)
+	std::vector<std::int32_t> ObjectPropertiesOfClass(UE::UStruct* a_struct, std::string_view a_className);
+
 	bool SelfCheck();   // true once the Offset_Internal layout is proven
 
 	// For an object read THIS frame from a live owner: reads a_o's own index, so never for a pointer kept from an

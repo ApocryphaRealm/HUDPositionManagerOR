@@ -36,6 +36,7 @@ namespace hud
 			// the preview: shown by this code while the page is open, with the game's state to put back
 			bool         shownByUs = false;
 			ULONGLONG    previewCalledAt = 0;
+			std::vector<std::pair<UE::UObject**, UE::UObject*>> mutedSounds;   // the sound-event slots cleared for the preview, with what they held
 			std::uint8_t visBeforePreview = kSelfHitTestInvisible;
 			float        opacityBeforePreview = 1.0f;
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
@@ -413,6 +414,51 @@ namespace hud
 			}
 		}
 
+		// The widget's Wwise sound events (AkAudioEvent object properties, on it and on its child user widgets) cleared so the
+		// preview's show calls make no noise; Unmute puts them back.
+		void MuteSounds(UE::UObject* a_w, Tracked& a_t, int a_depth = 0)
+		{
+			if (!a_w || a_depth > 3) return;
+			auto* cls = a_w->GetClass();
+			for (const auto off : ue::ObjectPropertiesOfClass(cls, "AkAudioEvent")) {
+				auto** slot = ue::At<UE::UObject*>(a_w, off);
+				if (slot && *slot) {
+					a_t.mutedSounds.emplace_back(slot, *slot);
+					*slot = nullptr;
+				}
+			}
+			// the child user widgets it names (a notification's inner prefab, a bar's status bar)
+			if (UserWidgetClass() && cls->IsChildOf(UserWidgetClass())) {
+				auto* root = ObjProp(ObjProp(a_w, "WidgetTree"), "RootWidget");
+				std::vector<UE::UObject*> stack{ root };
+				int seen = 0;
+				while (!stack.empty() && ++seen < 200) {
+					auto* w = stack.back();
+					stack.pop_back();
+					if (!w) continue;
+					auto* wc = w->GetClass();
+					if (wc->IsChildOf(UserWidgetClass())) {
+						MuteSounds(w, a_t, a_depth + 1);   // a nested user widget: its own sound slots, and its tree
+						continue;
+					}
+					if (PanelClass() && wc->IsChildOf(PanelClass())) {
+						auto* slots = ue::At<RawArray>(w, Off(wc, "Slots"));
+						for (std::int32_t i = 0; slots && slots->data && i < slots->num && i < 256; ++i) stack.push_back(ObjProp(slots->data[i], "Content"));
+					} else if (Off(wc, "Content") >= 0) {
+						stack.push_back(ObjProp(w, "Content"));
+					}
+				}
+			}
+		}
+
+		void UnmuteSounds(Tracked& a_t)
+		{
+			for (auto& [slot, was] : a_t.mutedSounds) {
+				if (slot && *slot == nullptr) *slot = was;
+			}
+			a_t.mutedSounds.clear();
+		}
+
 		void SetVisibility(UE::UObject* a_w, std::uint8_t a_v)
 		{
 			ue::Call c(a_w, L"SetVisibility");
@@ -780,6 +826,10 @@ namespace hud
 						const ULONGLONG nowMs = GetTickCount64();
 						const bool hiddenAgain = t.previewCalledAt != 0 && (Visibility(w) == kHidden || Visibility(w) == kCollapsed || Opacity(w) < 0.5f);
 						if (t.previewCalledAt == 0 || (hiddenAgain && nowMs - t.previewCalledAt >= 2000)) {
+							if (t.mutedSounds.empty()) {
+								MuteSounds(w, t);
+								if (!t.mutedSounds.empty()) logger::info("preview: {} - {} sound event(s) silenced while the page is open", all[i].key, t.mutedSounds.size());
+							}
 							t.previewCalledAt = nowMs;
 							RunPreviewCalls(w, all[i].previewOn, all[i].key);
 						}
@@ -788,6 +838,7 @@ namespace hud
 					t.shownByUs = false;
 					t.previewCalledAt = 0;
 					if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);   // the game's own state again
+					UnmuteSounds(t);   // after the off calls, so those are silent too
 					if (!t.hiddenByUs) SetVisibility(w, t.visBeforePreview);
 					if (!t.forced) SetOpacity(w, t.opacityBeforePreview);
 				}

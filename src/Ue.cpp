@@ -41,6 +41,25 @@ namespace ue
 		return a_o ? Utf8(a_o->GetFName().ToString()) : std::string("null");
 	}
 
+	std::vector<std::int32_t> ObjectPropertiesOfClass(UE::UStruct* a_struct, std::string_view a_className)
+	{
+		// FField: ClassPrivate (FFieldClass*) at +0x08, its Name (FName) first; FProperty is 0x78 bytes and an
+		// FObjectPropertyBase keeps PropertyClass (UClass*) right after, at +0x78 (UE 5.3)
+		constexpr std::ptrdiff_t kFieldClass = 0x08, kPropertyClass = 0x78;
+		std::vector<std::int32_t> out;
+		for (UE::UStruct* s = a_struct; s; s = s->superStruct) {
+			for (auto* f = reinterpret_cast<std::uint8_t*>(s->childProperties); f; f = *reinterpret_cast<std::uint8_t**>(f + kFieldNext)) {
+				auto* fieldClass = *reinterpret_cast<std::uint8_t**>(f + kFieldClass);
+				if (!fieldClass || Utf8(reinterpret_cast<const UE::FName*>(fieldClass)->ToString()) != "ObjectProperty") continue;
+				auto* propClass = *reinterpret_cast<UE::UStruct**>(f + kPropertyClass);
+				if (propClass && Utf8(propClass->GetFName().ToString()) == a_className) {
+					out.push_back(*reinterpret_cast<const std::int32_t*>(f + kPropertyOffsetInternal));
+				}
+			}
+		}
+		return out;
+	}
+
 	std::int32_t Offset(UE::UStruct* a_struct, std::string_view a_name)
 	{
 		for (UE::UStruct* s = a_struct; s; s = s->superStruct) {
