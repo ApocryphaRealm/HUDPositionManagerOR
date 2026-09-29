@@ -42,6 +42,25 @@ namespace page
 
 		void Hint(const char* a_text) { ImGui::TextDisabled("%s", a_text); }
 
+		// A percent slider that moves 0.1 % per D-pad tick (the owner, 2026-09-29: "make sure that the percentage ticks per
+		// slider move is 0.1%, even if it's a slow movement to get across the whole way"): the value is held in tenths
+		// of a percent on an integer slider, which ImGui's navigation steps one unit at a time, and the text is drawn
+		// over it as a percentage with one decimal. The mouse drags it as any slider.
+		bool PercentSlider(const char* a_label, float* a_value, double a_min, double a_max)
+		{
+			int tenths = static_cast<int>(std::lround(*a_value * 10.0f));
+			const int lo = static_cast<int>(std::floor(a_min * 10.0)), hi = static_cast<int>(std::ceil(a_max * 10.0));
+			tenths = std::clamp(tenths, lo, hi);
+			const bool changed = ImGui::SliderInt(a_label, &tenths, lo, std::max(lo, hi), "", ImGuiSliderFlags_NoInput);
+			const ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
+			char text[32];
+			std::snprintf(text, sizeof(text), "%.1f %%", tenths / 10.0);
+			const ImVec2 sz = ImGui::CalcTextSize(text);
+			ImGui::GetWindowDrawList()->AddText(ImVec2((mn.x + mx.x - sz.x) * 0.5f, (mn.y + mx.y - sz.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), text);
+			if (changed) *a_value = tenths / 10.0f;
+			return changed;
+		}
+
 		// a slider's range, frozen while it is held (per element; the page draws on one thread)
 		struct HeldRange
 		{
@@ -209,10 +228,10 @@ namespace page
 			e.x = std::clamp(e.x, static_cast<float>(minX), static_cast<float>(maxX));
 			e.y = std::clamp(e.y, static_cast<float>(minY), static_cast<float>(maxY));
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveX", "Move left / right")) + id + "x").c_str(), &e.x, static_cast<float>(minX), static_cast<float>(maxX), "%.1f %%");
+			changed |= PercentSlider((std::string(TR("HPM_MoveX", "Move left / right")) + id + "x").c_str(), &e.x, minX, maxX);
 			held.x = ImGui::IsItemActive();
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveY", "Move up / down")) + id + "y").c_str(), &e.y, static_cast<float>(minY), static_cast<float>(maxY), "%.1f %%");
+			changed |= PercentSlider((std::string(TR("HPM_MoveY", "Move up / down")) + id + "y").c_str(), &e.y, minY, maxY);
 			held.y = ImGui::IsItemActive();
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
 			changed |= ImGui::SliderFloat((std::string(TR("HPM_Size", "Size")) + id + "s").c_str(), &e.scale, settings::kScaleMin, maxScale, "%.2fx");

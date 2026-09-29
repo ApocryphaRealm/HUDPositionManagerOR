@@ -25,7 +25,7 @@ namespace settings
 		bool                 linkBars = true;       // [General] bLinkBars - Magicka and Fatigue move with Health
 		bool                 alwaysVisible = false; // [General] bAlwaysVisible - the whole HUD: "Always visible" vs "The game decides"
 		bool                 noOverlap = false;     // [General] bWidgetCollision - an element stops where its edge meets another's (2026-09-29; off since the snap)
-		bool                 snapEdges = true;      // [General] bSnapEdges - a placed widget's art edges pull onto another placed widget's (2026-09-29)
+		bool                 snapEdges = false;     // [General] bSnapEdges (off since the 0.1 % slider ticks, the owner 2026-09-29) - a placed widget's art edges pull onto another placed widget's (2026-09-29)
 		float                snapDistance = 6.0f;   // [General] fSnapDistance - how close an edge has to come, in layout units
 		std::vector<Element> elements = std::vector<Element>(elements::Count());
 		int                  logLevel = 2;          // [Log] uLogLevel (rule 14: shipped at info)
