@@ -11,8 +11,8 @@ namespace settings
 {
 	struct Element
 	{
-		float       x = 0.0f;              // [<key>] fX - right is positive, in the HUD's own units (1920 x 1080)
-		float       y = 0.0f;              // [<key>] fY - down is positive
+		float       x = 0.0f;              // [<key>] fX - right is positive, a PERCENTAGE of the screen's width (-100..100)
+		float       y = 0.0f;              // [<key>] fY - down is positive, a percentage of the screen's height
 		float       scale = 1.0f;          // [<key>] fScale - about the element's own centre
 		bool        hide = false;          // [<key>] bHide
 		bool        alwaysVisible = false; // [<key>] bAlwaysVisible - only for the elements the game fades on its own
@@ -28,7 +28,7 @@ namespace settings
 		int                  logLevel = 2;          // [Log] uLogLevel (rule 14: shipped at info)
 	};
 
-	inline constexpr float kMoveX = 960.0f, kMoveY = 540.0f;
+	inline constexpr float kMoveX = 100.0f, kMoveY = 100.0f;   // percent of the screen (the page narrows it to what fits)
 	inline constexpr float kScaleMin = 0.25f, kScaleMax = 3.0f;
 
 	Values Snapshot();
@@ -38,6 +38,21 @@ namespace settings
 
 	void                  Load();
 	bool                  Save();
+
+	// Presets: whole layouts as INI files in <plugin folder>\HUDPositionManager\presets\<name>.ini - the element
+	// sections of the settings file plus [General] bLinkBars / bAlwaysVisible and a [Preset] header (sName, sAuthor,
+	// sNote). Other authors ship theirs into that folder; the page lists, loads, saves and deletes them (2026-09-29).
+	struct PresetInfo
+	{
+		std::filesystem::path path;
+		std::string           name, author, note;
+	};
+	std::filesystem::path   PresetsFolder();
+	std::vector<PresetInfo> ListPresets();                                  // by name, case-insensitively
+	bool                    LoadPreset(const std::filesystem::path& a_path);  // applies its layout and saves the settings
+	std::filesystem::path   SavePreset(std::string a_name, const std::string& a_author, const std::string& a_note);   // the current layout; empty on failure
+	bool                    UpdatePreset(const std::filesystem::path& a_path);   // the current layout into an existing preset (its header kept)
+	bool                    DeletePreset(const std::filesystem::path& a_path);
 	std::filesystem::path PluginFolder();   // ...\OblivionRemastered\Binaries\Win64\OBSE\Plugins
 	std::filesystem::path IniPath();
 }

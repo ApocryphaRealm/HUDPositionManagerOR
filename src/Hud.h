@@ -14,6 +14,8 @@
 // and a visible state every frame. Everything goes through reflected UFunctions (ProcessEvent) - no hook.
 // ============================================================================================================
 
+#include "Settings.h"
+
 namespace hud
 {
 	void Tick();
@@ -31,12 +33,17 @@ namespace hud
 		// the viewport's size - the page's slider bounds come from these (2026-09-29: nothing may leave the screen)
 		bool        measured = false;
 		double      vx = 0, vy = 0, vw = 0, vh = 0, viewW = 0, viewH = 0;
+		double      baseVX = 0, baseVY = 0;   // the rectangle's top-left with NO offset applied (fixed at measurement)
 	};
 
-	// The offset range an element may take without leaving the screen, from its measured rectangle: [minX, maxX] and
-	// [minY, maxY] around the element's OWN offset (the rectangle was measured with that offset applied). False when
-	// the element has not been measured; the page then falls back to the fixed range.
-	bool OffsetRange(const ElementStatus& a_st, double a_ownX, double a_ownY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY);
+	// The offset range an element's OWN slider may take without the element leaving the screen, in layout units:
+	// from the rectangle's anchor fixed at measurement plus what the element moves with (a_withX / a_withY, units -
+	// hud::MoveWithOffset in percent times the viewport). Nothing in it changes while a slider moves, so a mouse drag
+	// maps to the same value from frame to frame (2026-09-29). False when the element has not been measured.
+	bool OffsetRange(const ElementStatus& a_st, double a_withX, double a_withY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY);
+
+	// what the element inherits from the element(s) it moves with, in percent of the screen (its own offset excluded)
+	std::pair<double, double> MoveWithOffset(const settings::Values& a_s, std::size_t a_i);
 
 	bool                       HudFound();   // any thread
 	std::vector<ElementStatus> Statuses();   // any thread, in elements::All() order

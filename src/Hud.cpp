@@ -27,6 +27,7 @@ namespace hud
 			bool        forced = false;     // "Always visible" is holding it up
 			bool        measured = false;   // the rectangle below is fresh enough to bound the sliders
 			double      vx = 0, vy = 0, vw = 0, vh = 0;
+			double      baseVX = 0, baseVY = 0;   // vx / vy minus the offset that was applied when measured: the bound's anchor
 			ULONGLONG   measuredAt = 0;
 		};
 		double g_viewW = 0, g_viewH = 0;
@@ -332,6 +333,8 @@ namespace hud
 			// health bar's centre measured at exactly 960 on a 3200x1800 display); GetViewportSize is in pixels
 			g_viewW = vs[0] / dpiScale;
 			g_viewH = vs[1] / dpiScale;
+			a_t.baseVX = a_t.vx - a_t.lastX;   // the geometry was painted with the offset written last frame
+			a_t.baseVY = a_t.vy - a_t.lastY;
 			a_t.measured = a_t.vw > 0.0 && a_t.vh > 0.0;
 			return a_t.measured;
 		}
@@ -388,6 +391,11 @@ namespace hud
 					t.wrote = false;
 				}
 				auto [ox, oy] = a_s.enabled ? Offset(a_s, i) : std::pair<double, double>{ 0.0, 0.0 };
+				// the settings hold percent of the screen; the render transform takes layout units (1920 x 1080 at every
+				// DPI, wider on a wide screen - the measured viewport, or the designer's size until it is measured)
+				const double unitW = g_viewW > 0.0 ? g_viewW : 1920.0, unitH = g_viewH > 0.0 ? g_viewH : 1080.0;
+				ox = ox / 100.0 * unitW;
+				oy = oy / 100.0 * unitH;
 				const double scale = a_s.enabled ? e.scale : 1.0;
 				// the rectangle on screen, twice a second; the offset is clamped so the element never leaves the screen
 				const ULONGLONG nowMs = GetTickCount64();
@@ -396,9 +404,9 @@ namespace hud
 					Measure(w, t);
 				}
 				if (t.measured && a_s.enabled) {
-					const double baseVX = t.vx - t.lastX, baseVY = t.vy - t.lastY;   // where the rectangle sits with no offset
-					ox = std::clamp(ox, -baseVX, std::max(-baseVX, g_viewW - baseVX - t.vw));
-					oy = std::clamp(oy, -baseVY, std::max(-baseVY, g_viewH - baseVY - t.vh));
+					// against the anchor fixed at measurement, never against a value this frame changes
+					ox = std::clamp(ox, -t.baseVX, std::max(-t.baseVX, g_viewW - t.baseVX - t.vw));
+					oy = std::clamp(oy, -t.baseVY, std::max(-t.baseVY, g_viewH - t.baseVY - t.vh));
 				}
 				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scale, wantSY = t.baseSY * scale;
 				const bool   atBase = ox == 0.0 && oy == 0.0 && scale == 1.0;
@@ -483,6 +491,8 @@ namespace hud
 				st.vh = t.vh;
 				st.viewW = g_viewW;
 				st.viewH = g_viewH;
+				st.baseVX = t.baseVX;
+				st.baseVY = t.baseVY;
 				std::scoped_lock l(g_lock);
 				g_status[i] = st;
 			}
@@ -517,21 +527,26 @@ namespace hud
 		Apply(settings::Snapshot(), gameplay);
 	}
 
-	bool OffsetRange(const ElementStatus& a_st, double a_ownX, double a_ownY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY)
+	bool OffsetRange(const ElementStatus& a_st, double a_withX, double a_withY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY)
 	{
 		if (!a_st.measured || a_st.viewW <= 0.0 || a_st.viewH <= 0.0) {
 			return false;
 		}
-		// the rectangle was measured with the element's WHOLE offset applied (its own plus what it moves with);
-		// (st.x - baseX) is that whole offset, of which a_ownX is the slider's part
-		const double wholeX = a_st.x - a_st.baseX, wholeY = a_st.y - a_st.baseY;
-		const double leftAtZero = a_st.vx - wholeX + (wholeX - a_ownX);   // the rectangle's left with the slider at 0
-		const double topAtZero = a_st.vy - wholeY + (wholeY - a_ownY);
+		// baseVX is the rectangle's left with NO offset at all; what it moves with is added, the slider's own part is not
+		const double leftAtZero = a_st.baseVX + a_withX;   // the rectangle's left with the slider at 0
+		const double topAtZero = a_st.baseVY + a_withY;
 		a_minX = -leftAtZero;
 		a_maxX = std::max(a_minX, a_st.viewW - leftAtZero - a_st.vw);
 		a_minY = -topAtZero;
 		a_maxY = std::max(a_minY, a_st.viewH - topAtZero - a_st.vh);
 		return true;
+	}
+
+	std::pair<double, double> MoveWithOffset(const settings::Values& a_s, std::size_t a_i)
+	{
+		if (a_i >= a_s.elements.size()) return { 0.0, 0.0 };
+		const auto [x, y] = Offset(a_s, a_i);
+		return { x - a_s.elements[a_i].x, y - a_s.elements[a_i].y };
 	}
 
 	bool HudFound()

@@ -50,8 +50,8 @@ namespace settings
 			for (std::size_t i = 0; i < all.size() && i < a_v.elements.size(); ++i) {
 				const std::string s = all[i].key;
 				const auto&       e = a_v.elements[i];
-				out.emplace_back(s + ".fX", f(e.x, 0));
-				out.emplace_back(s + ".fY", f(e.y, 0));
+				out.emplace_back(s + ".fX", std::format("{:.2f}", e.x));   // percent of the screen
+				out.emplace_back(s + ".fY", std::format("{:.2f}", e.y));
 				out.emplace_back(s + ".fScale", f(e.scale, 2));
 				out.emplace_back(s + ".bHide", e.hide ? "1" : "0");
 				if (all[i].fades) {
@@ -119,53 +119,76 @@ namespace settings
 	}
 
 	std::filesystem::path PluginFolder() { return ModuleFolder(); }
+	std::filesystem::path PresetsFolder() { return ModuleFolder() / L"HUDPositionManager" / L"presets"; }
 	std::filesystem::path IniPath() { return ModuleFolder() / L"HUDPositionManager.ini"; }
+
+	namespace
+	{
+		using Entries = std::unordered_map<std::string, std::string>;   // "section.key" (lower case) -> value
+
+		bool ReadIni(const std::filesystem::path& a_path, Entries& a_out)
+		{
+			std::ifstream file(a_path);
+			if (!file.is_open()) return false;
+			std::string line, section;
+			while (std::getline(file, line)) {
+				const auto t = Trim(line);
+				if (t.empty() || t.front() == ';' || t.front() == '#') continue;
+				if (t.front() == '[' && t.back() == ']') {
+					section = Lower(std::string(Trim(t.substr(1, t.size() - 2))));
+					continue;
+				}
+				const auto eq = t.find('=');
+				if (eq == std::string_view::npos) continue;
+				a_out[section + "." + Lower(std::string(Trim(t.substr(0, eq))))] = std::string(Trim(t.substr(eq + 1)));
+			}
+			return true;
+		}
+
+		const std::string* Get(const Entries& a_e, const std::string& a_key)
+		{
+			const auto it = a_e.find(Lower(a_key));
+			return it != a_e.end() ? &it->second : nullptr;
+		}
+
+		bool Flag(const std::string& a_v) { return a_v != "0" && Lower(a_v) != "false"; }
+
+		// the layout keys (the elements, bars together, HUD always visible) of a settings or preset file into a_v;
+		// how many elements differ from the game's own layout
+		int ReadLayout(const Entries& a_e, Values& a_v)
+		{
+			if (const auto* s = Get(a_e, "General.bLinkBars")) a_v.linkBars = Flag(*s);
+			if (const auto* s = Get(a_e, "General.bAlwaysVisible")) a_v.alwaysVisible = Flag(*s);
+			const auto& all = elements::All();
+			a_v.elements.resize(all.size());
+			int moved = 0;
+			for (std::size_t i = 0; i < all.size(); ++i) {
+				const std::string k = all[i].key;
+				auto&             e = a_v.elements[i];
+				if (const auto* s = Get(a_e, k + ".fX")) e.x = static_cast<float>(std::atof(s->c_str()));
+				if (const auto* s = Get(a_e, k + ".fY")) e.y = static_cast<float>(std::atof(s->c_str()));
+				if (const auto* s = Get(a_e, k + ".fScale")) e.scale = static_cast<float>(std::atof(s->c_str()));
+				if (const auto* s = Get(a_e, k + ".bHide")) e.hide = Flag(*s);
+				if (const auto* s = Get(a_e, k + ".bAlwaysVisible")) e.alwaysVisible = Flag(*s);
+				if (const auto* s = Get(a_e, k + ".sMoveWith")) e.moveWith = *s;
+				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.hide) ? 1 : 0;
+			}
+			return moved;
+		}
+	}
 
 	void Load()
 	{
-		std::ifstream file(IniPath());
-		if (!file.is_open()) {
+		Entries entries;
+		if (!ReadIni(IniPath(), entries)) {
 			logger::info("settings: {} not found - the compiled defaults are in effect (they match the shipped INI)", IniPath().string());
 			return;
 		}
-		std::unordered_map<std::string, std::string> entries;
-		std::string line, section;
-		while (std::getline(file, line)) {
-			const auto t = Trim(line);
-			if (t.empty() || t.front() == ';' || t.front() == '#') continue;
-			if (t.front() == '[' && t.back() == ']') {
-				section = Lower(std::string(Trim(t.substr(1, t.size() - 2))));
-				continue;
-			}
-			const auto eq = t.find('=');
-			if (eq == std::string_view::npos) continue;
-			entries[section + "." + Lower(std::string(Trim(t.substr(0, eq))))] = std::string(Trim(t.substr(eq + 1)));
-		}
-		const auto get = [&](const std::string& a_key) -> const std::string* {
-			const auto it = entries.find(Lower(a_key));
-			return it != entries.end() ? &it->second : nullptr;
-		};
-		const auto flag = [](const std::string& a_v) { return a_v != "0" && Lower(a_v) != "false"; };
 		std::scoped_lock l(g_valuesLock);
 		auto& v = g_values;
-		if (const auto* s = get("General.bEnabled")) v.enabled = flag(*s);
-		if (const auto* s = get("General.bLinkBars")) v.linkBars = flag(*s);
-		if (const auto* s = get("General.bAlwaysVisible")) v.alwaysVisible = flag(*s);
-		const auto& all = elements::All();
-		v.elements.resize(all.size());
-		int moved = 0;
-		for (std::size_t i = 0; i < all.size(); ++i) {
-			const std::string k = all[i].key;
-			auto&             e = v.elements[i];
-			if (const auto* s = get(k + ".fX")) e.x = static_cast<float>(std::atof(s->c_str()));
-			if (const auto* s = get(k + ".fY")) e.y = static_cast<float>(std::atof(s->c_str()));
-			if (const auto* s = get(k + ".fScale")) e.scale = static_cast<float>(std::atof(s->c_str()));
-			if (const auto* s = get(k + ".bHide")) e.hide = flag(*s);
-			if (const auto* s = get(k + ".bAlwaysVisible")) e.alwaysVisible = flag(*s);
-			if (const auto* s = get(k + ".sMoveWith")) e.moveWith = *s;
-			moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.hide) ? 1 : 0;
-		}
-		if (const auto* s = get("Log.uLogLevel")) v.logLevel = std::atoi(s->c_str());
+		if (const auto* s = Get(entries, "General.bEnabled")) v.enabled = Flag(*s);
+		const int moved = ReadLayout(entries, v);
+		if (const auto* s = Get(entries, "Log.uLogLevel")) v.logLevel = std::atoi(s->c_str());
 		Clamp(v);
 		logger::info("settings loaded from {}: layout {}, bars together {}, HUD {}, {} element(s) changed, log level {}", IniPath().string(),
 			v.enabled ? "on" : "off", v.linkBars, v.alwaysVisible ? "always visible" : "as the game decides", moved, v.logLevel);
@@ -260,5 +283,125 @@ namespace settings
 		}
 		logger::debug("settings: saved to {}", path.string());
 		return true;
+	}
+
+	std::vector<PresetInfo> ListPresets()
+	{
+		std::vector<PresetInfo> out;
+		std::error_code         ec;
+		for (const auto& entry : std::filesystem::directory_iterator(PresetsFolder(), ec)) {
+			if (!entry.is_regular_file(ec) || Lower(entry.path().extension().string()) != ".ini") continue;
+			PresetInfo p;
+			p.path = entry.path();
+			p.name = entry.path().stem().string();
+			Entries e;
+			if (ReadIni(p.path, e)) {
+				if (const auto* s = Get(e, "Preset.sName"); s && !s->empty()) p.name = *s;
+				if (const auto* s = Get(e, "Preset.sAuthor")) p.author = *s;
+				if (const auto* s = Get(e, "Preset.sNote")) p.note = *s;
+			}
+			out.push_back(std::move(p));
+		}
+		std::ranges::sort(out, [](const PresetInfo& a, const PresetInfo& b) { return Lower(a.name) < Lower(b.name); });
+		return out;
+	}
+
+	bool LoadPreset(const std::filesystem::path& a_path)
+	{
+		Entries e;
+		if (!ReadIni(a_path, e)) {
+			logger::warn("preset: {} could not be read", a_path.string());
+			return false;
+		}
+		int moved = 0;
+		{
+			std::scoped_lock l(g_valuesLock);
+			g_values.elements.assign(elements::Count(), Element{});   // a preset is the whole layout: what it leaves out is the game's own
+			moved = ReadLayout(e, g_values);
+			Clamp(g_values);
+		}
+		Save();
+		logger::info("preset: {} loaded - {} element(s) changed from the game's layout", a_path.string(), moved);
+		return true;
+	}
+
+	namespace
+	{
+		bool WritePreset(const std::filesystem::path& a_path, const std::string& a_name, const std::string& a_author, const std::string& a_note)
+		{
+			Values snapshot = Snapshot();
+			std::ofstream out(a_path, std::ios::binary | std::ios::trunc);
+			if (!out.is_open()) {
+				logger::error("preset: {} could not be written", a_path.string());
+				return false;
+			}
+			out << "; HUD Position Manager preset - a whole layout. Load it from the Presets tab; every element the file\r\n"
+			    << "; leaves out goes back to the game's own layout. fX / fY are a percentage of the screen.\r\n"
+			    << "[Preset]\r\nsName=" << a_name << "\r\nsAuthor=" << a_author << "\r\nsNote=" << a_note << "\r\n\r\n"
+			    << "[General]\r\nbLinkBars=" << (snapshot.linkBars ? 1 : 0) << "\r\nbAlwaysVisible=" << (snapshot.alwaysVisible ? 1 : 0) << "\r\n";
+			std::string section;
+			for (const auto& [key, value] : Rows(snapshot)) {
+				const auto        dot = key.find('.');
+				const std::string sec = key.substr(0, dot);
+				if (sec == "General" || sec == "Log") continue;
+				if (sec != section) {
+					out << "\r\n[" << sec << "]\r\n";
+					section = sec;
+				}
+				out << key.substr(dot + 1) << "=" << value << "\r\n";
+			}
+			return true;
+		}
+	}
+
+	bool UpdatePreset(const std::filesystem::path& a_path)
+	{
+		Entries e;
+		if (!ReadIni(a_path, e)) {
+			logger::warn("preset: {} could not be read - not updated", a_path.string());
+			return false;
+		}
+		const auto* name = Get(e, "Preset.sName");
+		const auto* author = Get(e, "Preset.sAuthor");
+		const auto* note = Get(e, "Preset.sNote");
+		const bool ok = WritePreset(a_path, name && !name->empty() ? *name : a_path.stem().string(), author ? *author : "", note ? *note : "");
+		if (ok) logger::info("preset: {} updated with the current layout", a_path.string());
+		return ok;
+	}
+
+	std::filesystem::path SavePreset(std::string a_name, const std::string& a_author, const std::string& a_note)
+	{
+		// a file name from the name: what Windows refuses is dropped; a taken name gets the next free number
+		std::string stem;
+		for (const char c : a_name) {
+			if (std::strchr("\\/:*?\"<>|", c) == nullptr && static_cast<unsigned char>(c) >= 0x20) stem.push_back(c);
+		}
+		while (!stem.empty() && (stem.back() == ' ' || stem.back() == '.')) stem.pop_back();
+		while (!stem.empty() && stem.front() == ' ') stem.erase(stem.begin());
+		if (stem.empty()) stem = "My layout";
+		std::error_code ec;
+		std::filesystem::create_directories(PresetsFolder(), ec);
+		std::filesystem::path path = PresetsFolder() / (stem + ".ini");
+		for (int n = 2; std::filesystem::exists(path, ec) && n < 1000; ++n) {
+			path = PresetsFolder() / std::format("{} {}.ini", stem, n);
+		}
+		if (!WritePreset(path, path.stem().string(), a_author, a_note)) {
+			return {};
+		}
+		logger::info("preset: the current layout saved to {}", path.string());
+		return path;
+	}
+
+	bool DeletePreset(const std::filesystem::path& a_path)
+	{
+		std::error_code ec;
+		// only a file inside the presets folder
+		const auto folder = std::filesystem::weakly_canonical(PresetsFolder(), ec);
+		const auto file = std::filesystem::weakly_canonical(a_path, ec);
+		if (file.parent_path() != folder) {
+			logger::warn("preset: {} is not in the presets folder - not deleted", a_path.string());
+			return false;
+		}
+		return std::filesystem::remove(file, ec) && !ec;
 	}
 }

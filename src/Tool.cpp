@@ -1,6 +1,6 @@
 // hud.position (rules 31 and 64): op state (default) - the switches, and per element: its settings, found, the widget,
 // the game's base transform and the applied one, opacity, visibility, whether "Always visible" is holding it up;
-// op set {element?, key, value} - change a setting as the page would (element keys: x, y, scale, hide, alwaysVisible,
+// op set {element?, key, value} - change a setting as the page would (element keys: x, y in PERCENT of the screen, scale, hide, alwaysVisible,
 // moveWith; without an element: enabled, linkBars, alwaysVisible); op reset {element?} - one element or every element.
 // Every accessor used here is thread-safe, so the handler answers on TestBench's own thread.
 #include "Hud.h"
@@ -86,8 +86,25 @@ namespace tool
 				Write(a_sink, a_write, { { "ok", true }, { "settings", SettingsJson() } });
 				return;
 			}
+			if (op == "presets") {
+				json list = json::array();
+				for (const auto& p : settings::ListPresets()) list.push_back({ { "path", p.path.string() }, { "name", p.name }, { "author", p.author }, { "note", p.note } });
+				Write(a_sink, a_write, { { "ok", true }, { "folder", settings::PresetsFolder().string() }, { "presets", list } });
+				return;
+			}
+			if (op == "savePreset") {
+				const auto path = settings::SavePreset(args.value("name", std::string("My layout")), args.value("author", std::string()), args.value("note", std::string()));
+				Write(a_sink, a_write, path.empty() ? json{ { "ok", false }, { "error", "could not write the preset" } } : json{ { "ok", true }, { "path", path.string() } });
+				return;
+			}
+			if (op == "loadPreset") {
+				const std::string p = args.value("path", std::string());
+				const bool        ok = !p.empty() && settings::LoadPreset(p);
+				Write(a_sink, a_write, ok ? json{ { "ok", true }, { "settings", SettingsJson() } } : json{ { "ok", false }, { "error", "loadPreset {path}: could not read it" } });
+				return;
+			}
 			if (op != "state") {
-				Write(a_sink, a_write, { { "ok", false }, { "error", "op: state | set {element?, key, value} | reset {element?}" } });
+				Write(a_sink, a_write, { { "ok", false }, { "error", "op: state | set {element?, key, value} | reset {element?} | presets | savePreset {name, author?, note?} | loadPreset {path}" } });
 				return;
 			}
 			Write(a_sink, a_write, { { "ok", true }, { "version", HPM_VERSION }, { "settings", SettingsJson() }, { "hud", hud::State() } });
@@ -102,7 +119,7 @@ namespace tool
 		g_tb = get ? static_cast<TestBenchAPI::ITestBenchInterface001*>(get(1)) : nullptr;
 		if (!g_tb) return false;
 		g_tb->RegisterTool("hud.position",
-			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, hide, alwaysVisible, moveWith; without element: enabled, linkBars, alwaysVisible; op reset {element?}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
+			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, hide, alwaysVisible, moveWith; without element: enabled, linkBars, alwaysVisible; op reset {element?}; op presets - the preset files; op savePreset {name, author?, note?} - the current layout as a preset; op loadPreset {path}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
 			&Tool, nullptr);
 		logger::info("TestBench tool registered: hud.position");
 		return true;

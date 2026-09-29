@@ -42,6 +42,102 @@ namespace page
 
 		void Hint(const char* a_text) { ImGui::TextDisabled("%s", a_text); }
 
+		// a slider's range, frozen while it is held (per element; the page draws on one thread)
+		struct HeldRange
+		{
+			bool   x = false, y = false;
+			double minX = 0, maxX = 0, minY = 0, maxY = 0;
+		};
+		std::vector<HeldRange> g_held(elements::Count());
+
+		// ---------------------------------------------------------------- the Presets tab
+		std::vector<settings::PresetInfo> g_presets;
+		ULONGLONG                         g_presetsAt = 0;   // listed at most once a second while the tab is open
+		int                               g_presetIndex = 0;
+		char                              g_presetName[64] = "My layout";
+		std::string                       g_presetNotice;    // the last result, shown under the buttons
+		std::string                       g_deleteArmed;     // the preset path a first press of Delete named
+		int                               g_saveIndex = 0;   // 0 = a new preset (the name field), else g_presets[i - 1] updated in place
+
+		void PresetsTab()
+		{
+			const ULONGLONG now = GetTickCount64();
+			if (now - g_presetsAt >= 1000) {
+				g_presetsAt = now;
+				g_presets = settings::ListPresets();
+			}
+			if (g_presetIndex >= static_cast<int>(g_presets.size())) g_presetIndex = g_presets.empty() ? 0 : static_cast<int>(g_presets.size()) - 1;
+			ImGui::TextWrapped("%s", TR("HPM_PresetsIntro", "A preset is a whole layout: every element's position, size and visibility. Load one made by someone else, or save your own to switch between."));
+			Hint(settings::PresetsFolder().string().c_str());
+			ImGui::Spacing();
+			if (g_presets.empty()) {
+				Hint(TR("HPM_PresetsNone", "No presets yet. Save your layout below, or put a preset file from another author in the folder above."));
+			} else {
+				std::vector<std::string> labels;
+				for (const auto& p : g_presets) {
+					labels.push_back(p.author.empty() ? p.name : std::format("{} ({})", p.name, p.author));
+				}
+				std::vector<const char*> ptrs;
+				for (const auto& l : labels) ptrs.push_back(l.c_str());
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				ImGui::Combo((std::string(TR("HPM_Preset", "Preset")) + "##preset").c_str(), &g_presetIndex, ptrs.data(), static_cast<int>(ptrs.size()));
+				const auto& cur = g_presets[static_cast<std::size_t>(g_presetIndex)];
+				if (!cur.note.empty()) Hint(cur.note.c_str());
+				if (ImGui::Button((std::string(TR("HPM_PresetLoad", "Load this preset")) + "##load").c_str())) {
+					const bool ok = settings::LoadPreset(cur.path);
+					g_presetNotice = ok ? std::format("{}: {}", TR("HPM_PresetLoaded", "Loaded"), cur.name) : std::format("{}: {}", TR("HPM_PresetFailed", "Could not read"), cur.name);
+					logger::info("page: preset {} {}", cur.path.string(), ok ? "loaded" : "could not be read");
+				}
+				ImGui::SameLine();
+				const bool armed = g_deleteArmed == cur.path.string();
+				if (ImGui::Button((std::string(armed ? TR("HPM_PresetDeleteSure", "Press again to delete") : TR("HPM_PresetDelete", "Delete")) + "##delete").c_str())) {
+					if (armed) {
+						const bool ok = settings::DeletePreset(cur.path);
+						g_presetNotice = ok ? std::format("{}: {}", TR("HPM_PresetDeleted", "Deleted"), cur.name) : std::format("{}: {}", TR("HPM_PresetDeleteFailed", "Could not delete"), cur.name);
+						logger::info("page: preset {} {}", cur.path.string(), ok ? "deleted" : "could not be deleted");
+						g_deleteArmed.clear();
+						g_presetsAt = 0;
+					} else {
+						g_deleteArmed = cur.path.string();
+					}
+				}
+			}
+			ImGui::Spacing();
+			ImGui::SeparatorText(TR("HPM_PresetSaveGroup", "Save my layout"));
+			// where to: an existing preset, updated in place (no retyping its name - the owner, 2026-09-29), or a new one
+			{
+				std::vector<std::string> labels{ TR("HPM_PresetNew", "New preset") };
+				for (const auto& p : g_presets) labels.push_back(p.name);
+				std::vector<const char*> ptrs;
+				for (const auto& l : labels) ptrs.push_back(l.c_str());
+				if (g_saveIndex >= static_cast<int>(labels.size())) g_saveIndex = 0;
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				ImGui::Combo((std::string(TR("HPM_PresetSaveTo", "Save to")) + "##saveto").c_str(), &g_saveIndex, ptrs.data(), static_cast<int>(ptrs.size()));
+			}
+			if (g_saveIndex == 0) {
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				ImGui::InputText((std::string(TR("HPM_PresetName", "Name")) + "##name").c_str(), g_presetName, sizeof(g_presetName));
+				Hint(TR("HPM_PresetNameHint", "With a controller, leave the name as it is: each save gets its own number."));
+				if (ImGui::Button((std::string(TR("HPM_PresetSave", "Save as a preset")) + "##save").c_str())) {
+					const auto saved = settings::SavePreset(g_presetName, "", "");
+					g_presetNotice = saved.empty() ? std::string(TR("HPM_PresetSaveFailed", "The preset could not be written.")) : std::format("{}: {}", TR("HPM_PresetSaved", "Saved"), saved.stem().string());
+					logger::info("page: preset {} {}", g_presetName, saved.empty() ? "could not be written" : "saved to " + saved.string());
+					g_presetsAt = 0;
+				}
+			} else {
+				const auto& target = g_presets[static_cast<std::size_t>(g_saveIndex - 1)];
+				if (ImGui::Button((std::string(TR("HPM_PresetUpdate", "Update this preset with my layout")) + "##update").c_str())) {
+					const bool ok = settings::UpdatePreset(target.path);
+					g_presetNotice = ok ? std::format("{}: {}", TR("HPM_PresetSaved", "Saved"), target.name) : std::string(TR("HPM_PresetSaveFailed", "The preset could not be written."));
+					logger::info("page: preset {} {}", target.path.string(), ok ? "updated" : "could not be written");
+					g_presetsAt = 0;
+				}
+			}
+			if (!g_presetNotice.empty()) {
+				ImGui::TextWrapped("%s", g_presetNotice.c_str());
+			}
+		}
+
 		// every element's tab name, written out in full so translation-coverage.py reads each key from the source
 		const char* ElementName(std::size_t a_i)
 		{
@@ -83,18 +179,39 @@ namespace page
 			bool changed = false;
 			// the sliders' range is the screen: as far as the element can go before its edge leaves the viewport, from its
 			// measured rectangle (hud::OffsetRange); the fixed range until it has been measured
+			// the sliders are PERCENT of the screen; the measured range comes in layout units and is converted
 			double minX = -settings::kMoveX, maxX = settings::kMoveX, minY = -settings::kMoveY, maxY = settings::kMoveY;
 			float  maxScale = settings::kScaleMax;
-			if (hud::OffsetRange(a_st, e.x, e.y, minX, maxX, minY, maxY) && a_st.vw > 0.0 && a_st.vh > 0.0 && e.scale > 0.0f) {
-				const double unscaledW = a_st.vw / e.scale, unscaledH = a_st.vh / e.scale;
-				maxScale = static_cast<float>(std::clamp(std::min(a_st.viewW / unscaledW, a_st.viewH / unscaledH), static_cast<double>(settings::kScaleMin), static_cast<double>(settings::kScaleMax)));
+			const double unitW = a_st.viewW > 0.0 ? a_st.viewW : 1920.0, unitH = a_st.viewH > 0.0 ? a_st.viewH : 1080.0;
+			const auto [withX, withY] = hud::MoveWithOffset(a_v, a_i);
+			if (hud::OffsetRange(a_st, withX / 100.0 * unitW, withY / 100.0 * unitH, minX, maxX, minY, maxY)) {
+				minX = minX / unitW * 100.0;
+				maxX = maxX / unitW * 100.0;
+				minY = minY / unitH * 100.0;
+				maxY = maxY / unitH * 100.0;
+				if (a_st.vw > 0.0 && a_st.vh > 0.0 && e.scale > 0.0f) {
+					const double unscaledW = a_st.vw / e.scale, unscaledH = a_st.vh / e.scale;
+					maxScale = static_cast<float>(std::clamp(std::min(a_st.viewW / unscaledW, a_st.viewH / unscaledH), static_cast<double>(settings::kScaleMin), static_cast<double>(settings::kScaleMax)));
+				}
 			}
+			// hard lock: a percentage of the screen can never leave [-100, 100], whatever a measurement says (2026-09-29)
+			minX = std::clamp(minX, -100.0, 100.0);
+			maxX = std::clamp(maxX, minX, 100.0);
+			minY = std::clamp(minY, -100.0, 100.0);
+			maxY = std::clamp(maxY, minY, 100.0);
+			// while a slider is held (a mouse drag) its range is frozen: a range that moved with the twice-a-second
+			// measurement made the mouse's position mean a different value each frame ("teleporting", 2026-09-29)
+			auto& held = g_held[a_i];
+			if (held.x) { minX = held.minX; maxX = held.maxX; } else { held.minX = minX; held.maxX = maxX; }
+			if (held.y) { minY = held.minY; maxY = held.maxY; } else { held.minY = minY; held.maxY = maxY; }
 			e.x = std::clamp(e.x, static_cast<float>(minX), static_cast<float>(maxX));
 			e.y = std::clamp(e.y, static_cast<float>(minY), static_cast<float>(maxY));
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveX", "Move left / right")) + id + "x").c_str(), &e.x, static_cast<float>(minX), static_cast<float>(maxX), "%.0f");
+			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveX", "Move left / right")) + id + "x").c_str(), &e.x, static_cast<float>(minX), static_cast<float>(maxX), "%.1f %%");
+			held.x = ImGui::IsItemActive();
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveY", "Move up / down")) + id + "y").c_str(), &e.y, static_cast<float>(minY), static_cast<float>(maxY), "%.0f");
+			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveY", "Move up / down")) + id + "y").c_str(), &e.y, static_cast<float>(minY), static_cast<float>(maxY), "%.1f %%");
+			held.y = ImGui::IsItemActive();
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
 			changed |= ImGui::SliderFloat((std::string(TR("HPM_Size", "Size")) + id + "s").c_str(), &e.scale, settings::kScaleMin, maxScale, "%.2fx");
 			changed |= Switch((std::string(TR("HPM_Hide", "Hide")) + id + "h").c_str(), &e.hide);
@@ -137,6 +254,17 @@ namespace page
 				return;
 			}
 			strings::Refresh();
+			if (!ImGui::BeginTabBar("HpmTop", ImGuiTabBarFlags_None)) {
+				return;
+			}
+			if (ImGui::BeginTabItem((std::string(TR("HPM_TabPresets", "Presets")) + "##tabpresets").c_str())) {
+				PresetsTab();
+				ImGui::EndTabItem();
+			}
+			if (!ImGui::BeginTabItem((std::string(TR("HPM_TabLayout", "Layout")) + "##tablayout").c_str())) {
+				ImGui::EndTabBar();
+				return;
+			}
 			auto v = settings::Snapshot();
 			ImGui::TextWrapped("%s", TR("HPM_Intro", "Move, resize or hide each part of the HUD. Changes show in the HUD at once and are saved automatically."));
 			if (Switch(TR("HPM_Enabled", "Apply my layout"), &v.enabled)) {
@@ -175,6 +303,8 @@ namespace page
 				settings::ResetAll();
 				logger::info("page: every element reset");
 			}
+			ImGui::EndTabItem();
+			ImGui::EndTabBar();
 		}
 	}
 
