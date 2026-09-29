@@ -39,6 +39,12 @@ namespace hud
 			bool         shownByUs = false;
 			ULONGLONG    previewCalledAt = 0;
 			bool         created = false;        // made by this mod (createClass)
+			// a retainer box above the element whose material hides it (the enemy's health bar: M_UI_RetainerTransform's
+			// Opacity at 0 with every widget reporting visible) - raised for the preview, put back after
+			UE::UObject* veilMaterial = nullptr;
+			std::wstring veilParam;
+			float        veilWas = 0.0f;
+			bool         veiled = false;
 			int          shownLevel = -1;        // the level the created text shows
 			ULONGLONG    levelCheckedAt = 0;
 			std::vector<std::pair<UE::UObject**, UE::UObject*>> mutedSounds;
@@ -574,6 +580,66 @@ namespace hud
 			SetOpacity(a_w, a_t.opacityBeforeHold);
 		}
 
+		// The retainer box's material veil (2026-09-29: the enemy's health bar reported Visible with opacity 1 on every widget
+		// and ancestor, hidden only by an AnimatableRetainerBox's dynamic material, found live: M_UI_RetainerTransform's
+		// one scalar parameter, Opacity, 0 while hidden). The nearest such ancestor's material has that parameter raised
+		// to 1 while the element is previewed; the value it had comes back after. The parameter's name is read off the
+		// material's own first scalar parameter, Opacity when the material has none.
+		void RaiseVeil(UE::UObject* a_w, Tracked& a_t)
+		{
+			if (a_t.veiled) return;
+			UE::UObject* cur = a_w;
+			for (int up = 0; up < 6 && cur; ++up) {
+				auto* slot = ObjProp(cur, "Slot");
+				auto* parent = slot ? ObjProp(slot, "Parent") : nullptr;
+				if (!parent) break;
+				if (ue::NameOf(parent->GetClass()) == "AnimatableRetainerBox") {
+					auto* mid = ObjProp(parent, "EffectMaterial");
+					if (!mid) break;
+					std::wstring param = L"Opacity";
+					if (const auto off = Off(mid->GetClass(), "ScalarParameterValues"); off >= 0) {
+						const auto* arr = ue::At<RawArray>(mid, off);   // FScalarParameterValue: FMaterialParameterInfo { FName Name ... } first
+						if (arr && arr->data && arr->num > 0) {
+							const auto& name = *reinterpret_cast<const UE::FName*>(arr->data);
+							const std::string s = ue::Utf8FromWide(UE::GetData(name.ToString()));
+							if (!s.empty()) param = ue::Widen(s);
+						}
+					}
+					ue::Call get(mid, L"K2_GetScalarParameterValue");
+					ue::Call set(mid, L"SetScalarParameterValue");
+					if (!get || !set) break;
+					new (get.At("ParameterName")) UE::FName(param.c_str(), UE::EFindName::Add);
+					get.Run();
+					const float* was = static_cast<const float*>(get.At("ReturnValue"));
+					a_t.veilWas = was ? *was : 0.0f;
+					new (set.At("ParameterName")) UE::FName(param.c_str(), UE::EFindName::Add);
+					set.Set<float>("Value", 1.0f);
+					set.Run();
+					a_t.veilMaterial = mid;
+					a_t.veilParam = param;
+					a_t.veiled = true;
+					logger::info("preview: a retainer box's material veils this element - its {} raised from {:.2f} to 1", ue::Utf8FromWide(param.c_str()), a_t.veilWas);
+					break;
+				}
+				cur = parent;
+			}
+		}
+
+		void LowerVeil(Tracked& a_t)
+		{
+			if (!a_t.veiled) return;
+			a_t.veiled = false;
+			if (a_t.veilMaterial && ue::IsLive(a_t.veilMaterial)) {
+				ue::Call set(a_t.veilMaterial, L"SetScalarParameterValue");
+				if (set) {
+					new (set.At("ParameterName")) UE::FName(a_t.veilParam.c_str(), UE::EFindName::Add);
+					set.Set<float>("Value", a_t.veilWas);
+					set.Run();
+				}
+			}
+			a_t.veilMaterial = nullptr;
+		}
+
 		void UnmuteSounds(Tracked& a_t)
 		{
 			for (auto& [slot, was] : a_t.mutedSounds) {
@@ -961,6 +1027,7 @@ namespace hud
 					t.forced = always;
 					if (preview) {
 						t.previewWas = true;
+						RaiseVeil(w, t);
 						if (!all[i].previewOn.empty()) {
 							// the widget's own show calls: ONCE when the preview starts, and again only if the game has hidden
 							// the widget since (its own timers), at most every two seconds - a call a second replayed every
@@ -979,6 +1046,7 @@ namespace hud
 					} else if (t.previewWas) {
 						t.previewWas = false;   // the preview ended while always-visible holds on: the show calls' state goes back
 						t.previewCalledAt = 0;
+						LowerVeil(t);
 						if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);
 						UnmuteSounds(t);
 					}
@@ -988,6 +1056,7 @@ namespace hud
 						t.previewWas = false;
 						t.previewCalledAt = 0;
 						if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);   // the game's own state again
+						LowerVeil(t);
 					}
 					ReleaseHold(w, t);
 					UnmuteSounds(t);   // after the off calls, so those are silent too
