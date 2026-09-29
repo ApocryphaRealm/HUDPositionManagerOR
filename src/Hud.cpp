@@ -36,7 +36,13 @@ namespace hud
 			// the preview: shown by this code while the page is open, with the game's state to put back
 			bool         shownByUs = false;
 			ULONGLONG    previewCalledAt = 0;
-			std::vector<std::pair<UE::UObject**, UE::UObject*>> mutedSounds;   // the sound-event slots cleared for the preview, with what they held
+			std::vector<std::pair<UE::UObject**, UE::UObject*>> mutedSounds;
+			// the hold (always visible / the preview): what it changed, put back when it ends
+			bool         held = false, previewWas = false;
+			std::uint8_t visBeforeHold = kSelfHitTestInvisible;
+			float        opacityBeforeHold = 1.0f;
+			std::vector<std::pair<UE::UObject*, float>>        raisedOpacities;   // child widgets whose opacity the hold raised
+			std::vector<std::pair<UE::UObject*, UE::UObject*>> stoppedFades;      // (user widget, FadeOut animation) the hold stopped   // the sound-event slots cleared for the preview, with what they held
 			std::uint8_t visBeforePreview = kSelfHitTestInvisible;
 			float        opacityBeforePreview = 1.0f;
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
@@ -48,6 +54,8 @@ namespace hud
 		std::atomic<ULONGLONG> g_pageDrawnAt{ 0 };   // the preview runs while the page keeps saying it is drawn
 
 		std::vector<Tracked> g_el(elements::Count());
+		void SetVisibility(UE::UObject* a_w, std::uint8_t a_v);   // defined below; ReleaseHold uses them first
+		void SetOpacity(UE::UObject* a_w, float a_o);
 		ue::Handle           g_layout;
 
 		// ---- neighbours ([General] bNoOverlap): an element's edge stops at another element's edge ----------------
@@ -451,6 +459,29 @@ namespace hud
 			}
 		}
 
+		// everything a hold changed, put back: the raised child opacities, the stopped fade-outs played again (the game's
+		// own fade takes the element away as it would have), the root's visibility and opacity
+		void ReleaseHold(UE::UObject* a_w, Tracked& a_t)
+		{
+			for (auto& [child, opacity] : a_t.raisedOpacities) {
+				if (ue::IsLive(child)) SetOpacity(child, opacity);
+			}
+			a_t.raisedOpacities.clear();
+			for (auto& [owner, fade] : a_t.stoppedFades) {
+				if (!ue::IsLive(owner)) continue;
+				ue::Call play(owner, L"PlayAnimation");
+				if (!play) continue;
+				play.Set("InAnimation", fade);
+				play.Set<float>("StartAtTime", 0.0f);
+				play.Set<std::int32_t>("NumLoopsToPlay", 1);
+				play.Set<float>("PlaybackSpeed", 1.0f);
+				play.Run();
+			}
+			a_t.stoppedFades.clear();
+			if (!a_t.hiddenByUs) SetVisibility(a_w, a_t.visBeforeHold);
+			SetOpacity(a_w, a_t.opacityBeforeHold);
+		}
+
 		void UnmuteSounds(Tracked& a_t)
 		{
 			for (auto& [slot, was] : a_t.mutedSounds) {
@@ -478,7 +509,7 @@ namespace hud
 		// element's subtree is walked (a bar is three widgets): every user widget carrying a FadeOut animation has it
 		// stopped while it plays, and every widget under it whose opacity fell is put back to 1. Returns how many
 		// widgets were held up this frame.
-		int HoldSubtreeVisible(UE::UObject* a_widget, int a_depth, bool& a_stoppedFade)
+		int HoldSubtreeVisible(UE::UObject* a_widget, int a_depth, bool& a_stoppedFade, Tracked* a_t = nullptr)
 		{
 			if (!a_widget || a_depth > 8) {
 				return 0;
@@ -495,17 +526,21 @@ namespace hud
 						stop.Set("InAnimation", fade);
 						stop.Run();
 						a_stoppedFade = true;
+						if (a_t) a_t->stoppedFades.emplace_back(a_widget, fade);
 					}
 				}
-				held += HoldSubtreeVisible(ObjProp(ObjProp(a_widget, "WidgetTree"), "RootWidget"), a_depth + 1, a_stoppedFade);
+				held += HoldSubtreeVisible(ObjProp(ObjProp(a_widget, "WidgetTree"), "RootWidget"), a_depth + 1, a_stoppedFade, a_t);
 			}
 			if (PanelClass() && cls->IsChildOf(PanelClass())) {
 				auto* slots = ue::At<RawArray>(a_widget, Off(cls, "Slots"));
 				for (std::int32_t i = 0; slots && slots->data && i < slots->num && i < 64; ++i) {
-					held += HoldSubtreeVisible(ObjProp(slots->data[i], "Content"), a_depth + 1, a_stoppedFade);
+					held += HoldSubtreeVisible(ObjProp(slots->data[i], "Content"), a_depth + 1, a_stoppedFade, a_t);
 				}
 			}
 			if (a_depth > 0 && Opacity(a_widget) < 0.999f) {
+				if (a_t && std::ranges::none_of(a_t->raisedOpacities, [&](const auto& p) { return p.first == a_widget; })) {
+					a_t->raisedOpacities.emplace_back(a_widget, Opacity(a_widget));   // the first value seen is the game's
+				}
 				SetOpacity(a_widget, 1.0f);
 				++held;
 			}
@@ -808,60 +843,60 @@ namespace hud
 
 				// the preview: while the page is open every element is shown, so the ones that only appear during an event
 				// (status effects, the level-up bar, the enemy's health) can be placed; the game's state comes back after
-				// the preview is a MODE, on until the switch goes off - it stays when the menu closes, so an element the menu
-				// covers (the sneak eye in the middle of the screen) can be looked at (the owner, 2026-09-29)
+				// the hold: the preview (a MODE, on until its switch goes off - it stays when the menu closes, so an element
+				// the menu covers can be looked at) and "always visible" (in gameplay, for the elements the game fades or
+				// hides on its own). Both show the element at full opacity and stop its fade; the preview also runs the
+				// widget's own show calls. When both are off, everything the hold changed goes back (ReleaseHold).
 				const bool preview = a_s.preview && a_s.enabled && !hide;
-				if (preview) {
-					if (!t.shownByUs) {
-						t.shownByUs = true;
-						t.visBeforePreview = Visibility(w);
-						t.opacityBeforePreview = Opacity(w);
+				const bool always = !hide && a_gameplay && all[i].fades && (a_s.alwaysVisible || e.alwaysVisible);
+				if (preview || always) {
+					if (!t.held) {
+						t.held = true;
+						t.visBeforeHold = Visibility(w);
+						t.opacityBeforeHold = Opacity(w);
 					}
 					if (const auto v = Visibility(w); v == kHidden || v == kCollapsed) SetVisibility(w, kSelfHitTestInvisible);
 					if (Opacity(w) < 0.999f) SetOpacity(w, 1.0f);
-					bool stopped = false;
-					HoldSubtreeVisible(w, 0, stopped);
-					if (!all[i].previewOn.empty()) {
-						// the widget's own show calls: ONCE when the preview starts, and again only if the game has hidden the
-						// widget since (its own timers), at most every two seconds - a call a second replayed every appear
-						// animation (the owner, 2026-09-29: "reapplying every frame instead of just staying on screen")
-						const ULONGLONG nowMs = GetTickCount64();
-						const bool hiddenAgain = t.previewCalledAt != 0 && (Visibility(w) == kHidden || Visibility(w) == kCollapsed || Opacity(w) < 0.5f);
-						if (t.previewCalledAt == 0 || (hiddenAgain && nowMs - t.previewCalledAt >= 2000)) {
-							if (t.mutedSounds.empty()) {
-								MuteSounds(w, t);
-								if (!t.mutedSounds.empty()) logger::info("preview: {} - {} sound event(s) silenced while the page is open", all[i].key, t.mutedSounds.size());
-							}
-							t.previewCalledAt = nowMs;
-							RunPreviewCalls(w, all[i].previewOn, all[i].key);
-						}
-					}
-				} else if (t.shownByUs) {
-					t.shownByUs = false;
-					t.previewCalledAt = 0;
-					if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);   // the game's own state again
-					UnmuteSounds(t);   // after the off calls, so those are silent too
-					if (!t.hiddenByUs) SetVisibility(w, t.visBeforePreview);
-					if (!t.forced) SetOpacity(w, t.opacityBeforePreview);
-				}
-				// always visible: in gameplay only, for the elements the game fades or hides on its own
-				const bool always = !hide && a_gameplay && all[i].fades && (a_s.alwaysVisible || e.alwaysVisible);
-				if (always) {
-					if (Opacity(w) < 0.999f) {
-						SetOpacity(w, 1.0f);
-					}
-					if (const auto v = Visibility(w); v == kHidden || v == kCollapsed) {
-						SetVisibility(w, kSelfHitTestInvisible);
-					}
 					bool      stopped = false;
-					const int held = HoldSubtreeVisible(w, 0, stopped);
-					if ((held > 0 || stopped) && !t.forced) {
-						logger::info("hud: {} always visible - {} widget(s) held at full opacity{}", all[i].key, held, stopped ? ", its fade-out stopped" : "");
+					const int heldCount = HoldSubtreeVisible(w, 0, stopped, &t);
+					if (always && (heldCount > 0 || stopped) && !t.forced) {
+						logger::info("hud: {} always visible - {} widget(s) held at full opacity{}", all[i].key, heldCount, stopped ? ", its fade-out stopped" : "");
 					}
-					t.forced = true;
-				} else if (t.forced) {
+					t.forced = always;
+					if (preview) {
+						t.previewWas = true;
+						if (!all[i].previewOn.empty()) {
+							// the widget's own show calls: ONCE when the preview starts, and again only if the game has hidden
+							// the widget since (its own timers), at most every two seconds - a call a second replayed every
+							// appear animation (the owner, 2026-09-29)
+							const ULONGLONG nowMs = GetTickCount64();
+							const bool hiddenAgain = t.previewCalledAt != 0 && (Visibility(w) == kHidden || Visibility(w) == kCollapsed || Opacity(w) < 0.5f);
+							if (t.previewCalledAt == 0 || (hiddenAgain && nowMs - t.previewCalledAt >= 2000)) {
+								if (t.mutedSounds.empty()) {
+									MuteSounds(w, t);
+									if (!t.mutedSounds.empty()) logger::info("preview: {} - {} sound event(s) silenced while it is shown", all[i].key, t.mutedSounds.size());
+								}
+								t.previewCalledAt = nowMs;
+								RunPreviewCalls(w, all[i].previewOn, all[i].key);
+							}
+						}
+					} else if (t.previewWas) {
+						t.previewWas = false;   // the preview ended while always-visible holds on: the show calls' state goes back
+						t.previewCalledAt = 0;
+						if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);
+						UnmuteSounds(t);
+					}
+				} else if (t.held) {
+					t.held = false;
+					if (t.previewWas) {
+						t.previewWas = false;
+						t.previewCalledAt = 0;
+						if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);   // the game's own state again
+					}
+					ReleaseHold(w, t);
+					UnmuteSounds(t);   // after the off calls, so those are silent too
+					if (t.forced) logger::info("hud: {} back to the game's own showing and hiding", all[i].key);
 					t.forced = false;
-					logger::info("hud: {} back to the game's own showing and hiding", all[i].key);
 				}
 
 				st.found = true;

@@ -163,28 +163,27 @@ namespace page
 		// every element's tab name, written out in full so translation-coverage.py reads each key from the source
 		const char* ElementName(std::size_t a_i)
 		{
-			switch (a_i) {
-			case 0: return TR("HPM_El_Health", "Health");
-			case 1: return TR("HPM_El_Magicka", "Magicka");
-			case 2: return TR("HPM_El_Fatigue", "Fatigue");
-			case 3: return TR("HPM_El_Compass", "Compass");
-			case 4: return TR("HPM_El_Crosshair", "Crosshair");
-			case 5: return TR("HPM_El_WeaponIcon", "Weapon icon");
-			case 6: return TR("HPM_El_MagicIcon", "Spell icon");
-			case 7: return TR("HPM_El_EffectIcons", "Active effects");
-			case 8: return TR("HPM_El_EnemyHealth", "Enemy health");
-			case 9: return TR("HPM_El_SneakEye", "Sneak eye");
-			case 10: return TR("HPM_El_LevelUp", "Level-up gauge");
-			case 11: return TR("HPM_El_Info", "Target name and value");
-			case 12: return TR("HPM_El_Subtitles", "Subtitles and notifications");
-			case 13: return TR("HPM_El_Breath", "Breath meter");
-			case 14: return TR("HPM_El_Location", "Location name");
-			case 15: return TR("HPM_El_DamageIndicators", "Damage direction");
-			case 16: return TR("HPM_El_Notifications", "Pop-up notifications");
-			case 17: return TR("HPM_El_Tutorial", "Tutorial messages");
-			case 18: return TR("HPM_El_QuickWheel", "Quick wheel");
-			default: return elements::All()[a_i].english;
-			}
+			const std::string k = a_i < elements::Count() ? elements::All()[a_i].key : "";
+			if (k == "Health") return TR("HPM_El_Health", "Health");
+			if (k == "Magicka") return TR("HPM_El_Magicka", "Magicka");
+			if (k == "Fatigue") return TR("HPM_El_Fatigue", "Fatigue");
+			if (k == "Compass") return TR("HPM_El_Compass", "Compass");
+			if (k == "Crosshair") return TR("HPM_El_Crosshair", "Crosshair");
+			if (k == "WeaponIcon") return TR("HPM_El_WeaponIcon", "Weapon icon");
+			if (k == "MagicIcon") return TR("HPM_El_MagicIcon", "Spell icon");
+			if (k == "EffectIcons") return TR("HPM_El_EffectIcons", "Active effects");
+			if (k == "EnemyHealth") return TR("HPM_El_EnemyHealth", "Enemy health");
+			if (k == "SneakEye") return TR("HPM_El_SneakEye", "Sneak eye");
+			if (k == "LevelUp") return TR("HPM_El_LevelUp", "Level-up gauge");
+			if (k == "Info") return TR("HPM_El_Info", "Target name and value");
+			if (k == "Subtitles") return TR("HPM_El_Subtitles", "Subtitles and notifications");
+			if (k == "Breath") return TR("HPM_El_Breath", "Breath meter");
+			if (k == "Location") return TR("HPM_El_Location", "Location name");
+			if (k == "DamageIndicators") return TR("HPM_El_DamageIndicators", "Damage direction");
+			if (k == "Notifications") return TR("HPM_El_Notifications", "Pop-up notifications");
+			if (k == "Tutorial") return TR("HPM_El_Tutorial", "Tutorial messages");
+			if (k == "QuickWheel") return TR("HPM_El_QuickWheel", "Quick wheel");
+			return a_i < elements::Count() ? elements::All()[a_i].english : "";
 		}
 
 		void ElementTab(std::size_t a_i, const settings::Values& a_v, const std::vector<hud::ElementStatus>& a_all, bool a_hud)
