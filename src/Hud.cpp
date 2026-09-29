@@ -684,9 +684,15 @@ namespace hud
 				}
 				if (t.measured && a_s.enabled) {
 					// against the anchor fixed at measurement, never against a value this frame changes
-					const double insetX = (1.0 - all[i].visibleW) * 0.5 * t.vw;   // the undrawn margin may leave the screen
-					ox = std::clamp(ox, -(t.baseVX + insetX), std::max(-(t.baseVX + insetX), g_viewW - t.baseVX - t.vw + insetX));
-					oy = std::clamp(oy, -t.baseVY, std::max(-t.baseVY, g_viewH - t.baseVY - t.vh));
+					if (t.drawn) {
+						// the ART reaches the screen's edges (the compass strip sits 21 units below its box's top, 2026-09-29)
+						ox = std::clamp(ox, -t.baseDX, std::max(-t.baseDX, g_viewW - t.baseDX - t.dw));
+						oy = std::clamp(oy, -t.baseDY, std::max(-t.baseDY, g_viewH - t.baseDY - t.dh));
+					} else {
+						const double insetX = (1.0 - all[i].visibleW) * 0.5 * t.vw;   // the undrawn margin may leave the screen
+						ox = std::clamp(ox, -(t.baseVX + insetX), std::max(-(t.baseVX + insetX), g_viewW - t.baseVX - t.vw + insetX));
+						oy = std::clamp(oy, -t.baseVY, std::max(-t.baseVY, g_viewH - t.baseVY - t.vh));
+					}
 					if (a_s.noOverlap && t.drawn) {
 						// and against the neighbours' DRAWN edges, from where this element's art is now (measured) to where it wants to go
 						const Rect me{ true, t.dx, t.dy, t.dx + t.dw, t.dy + t.dh };
@@ -866,6 +872,15 @@ namespace hud
 			return false;
 		}
 		// baseVX is the rectangle's left with NO offset at all; what it moves with is added, the slider's own part is not
+		if (a_st.drawn && a_st.dvw > 0.0 && a_st.dvh > 0.0) {
+			// the art's rectangle bounds the sliders: the strip reaches the edge, not its box
+			const double leftAtZero = a_st.baseDX + a_withX, topAtZero = a_st.baseDY + a_withY;
+			a_minX = -leftAtZero;
+			a_maxX = std::max(a_minX, a_st.viewW - leftAtZero - a_st.dvw);
+			a_minY = -topAtZero;
+			a_maxY = std::max(a_minY, a_st.viewH - topAtZero - a_st.dvh);
+			return true;
+		}
 		const double leftAtZero = a_st.baseVX + a_withX;   // the rectangle's left with the slider at 0
 		const double topAtZero = a_st.baseVY + a_withY;
 		a_minX = -(leftAtZero + a_st.insetX);

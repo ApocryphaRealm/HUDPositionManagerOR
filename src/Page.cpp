@@ -46,12 +46,15 @@ namespace page
 		// slider move is 0.1%, even if it's a slow movement to get across the whole way"): the value is held in tenths
 		// of a percent on an integer slider, which ImGui's navigation steps one unit at a time, and the text is drawn
 		// over it as a percentage with one decimal. The mouse drags it as any slider.
+		bool g_percentActive = false;   // a percent slider is being adjusted this frame
+
 		bool PercentSlider(const char* a_label, float* a_value, double a_min, double a_max)
 		{
 			int tenths = static_cast<int>(std::lround(*a_value * 10.0f));
 			const int lo = static_cast<int>(std::floor(a_min * 10.0)), hi = static_cast<int>(std::ceil(a_max * 10.0));
 			tenths = std::clamp(tenths, lo, hi);
 			const bool changed = ImGui::SliderInt(a_label, &tenths, lo, std::max(lo, hi), "", ImGuiSliderFlags_NoInput);
+			if (ImGui::IsItemActive()) g_percentActive = true;
 			const ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
 			char text[32];
 			std::snprintf(text, sizeof(text), "%.1f %%", tenths / 10.0);
@@ -343,7 +346,7 @@ namespace page
 				}
 				ImGui::EndTabBar();
 			}
-			}
+			(void)current;
 			ImGui::Spacing();
 			ImGui::Separator();
 			if (ImGui::Button(TR("HPM_ResetAll", "Reset every element"))) {
@@ -352,6 +355,16 @@ namespace page
 			}
 			ImGui::EndTabItem();
 			ImGui::EndTabBar();
+			// 0.1 % per tick: ImGui moves an integer slider one unit per D-pad press only under its fine-tweak modifier once
+			// the range passes 100 units (1 % of the range otherwise - the owner saw 0.8 % ticks, 2026-09-29). While a percent
+			// slider is being adjusted the modifier is held for it; RB / Shift still gives the fast 1 % ticks on top.
+			static bool slowHeld = false;
+			if (g_percentActive != slowHeld) {
+				ImGui::GetIO().AddKeyEvent(ImGuiKey_GamepadL1, g_percentActive);
+				ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, g_percentActive);
+				slowHeld = g_percentActive;
+			}
+			g_percentActive = false;
 		}
 	}
 
