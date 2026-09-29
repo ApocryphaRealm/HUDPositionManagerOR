@@ -29,6 +29,9 @@ namespace hud
 			double      vx = 0, vy = 0, vw = 0, vh = 0;
 			double      baseVX = 0, baseVY = 0;   // vx / vy minus the offset that was applied when measured: the bound's anchor
 			ULONGLONG   measuredAt = 0;
+			// the drawn rectangle (the union of the visible images, text blocks and progress bars), for the collision
+			bool        drawn = false;
+			double      dx = 0, dy = 0, dw = 0, dh = 0, baseDX = 0, baseDY = 0;
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
 			bool        havePadBase = false, padWrote = false;
 			float       basePad[4]{}, lastPad[4]{};
@@ -96,7 +99,7 @@ namespace hud
 			std::vector<Rect> out(g_el.size());
 			for (std::size_t j = 0; j < g_el.size(); ++j) {
 				const auto& t = g_el[j];
-				if (t.widget.Get() && t.measured && t.vw > 0.0 && t.vh > 0.0) out[j] = { true, t.vx, t.vy, t.vx + t.vw, t.vy + t.vh };
+				if (t.widget.Get() && t.measured && t.drawn) out[j] = { true, t.dx, t.dy, t.dx + t.dw, t.dy + t.dh };
 			}
 			return out;
 		}
@@ -388,6 +391,77 @@ namespace hud
 		UE::UObject* SlateLib() { static auto* o = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/UMG.Default__SlateBlueprintLibrary"); return o; }
 		UE::UObject* LayoutLib() { static auto* o = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/UMG.Default__WidgetLayoutLibrary"); return o; }
 
+		// a widget's painted rectangle in layout units (its cached geometry through the Slate library); the size is the
+		// layout size times a_scale (the render scale the geometry was painted with)
+		bool MeasureRect(UE::UObject* a_w, double a_scaleX, double a_scaleY, double& a_x, double& a_y, double& a_wOut, double& a_hOut)
+		{
+			ue::Call geom(a_w, L"GetCachedGeometry");
+			if (!geom || !SlateLib()) return false;
+			geom.Run();
+			const void* g = geom.At("ReturnValue");
+			const auto  gsize = static_cast<std::size_t>(reinterpret_cast<UE::UStruct*>(geom.Function())->propertiesSize);
+			if (!g || gsize == 0 || gsize > 128) return false;
+			ue::Call toView(SlateLib(), L"LocalToViewport");
+			ue::Call size(SlateLib(), L"GetLocalSize");
+			if (!toView || !size || !toView.At("Geometry") || !size.At("Geometry")) return false;
+			std::memcpy(toView.At("Geometry"), g, gsize);
+			std::memcpy(size.At("Geometry"), g, gsize);
+			toView.Set("WorldContextObject", a_w);
+			const double zero[2] = { 0.0, 0.0 };
+			if (void* lc = toView.At("LocalCoordinate")) std::memcpy(lc, zero, sizeof(zero));
+			if (!toView.Run() || !size.Run()) return false;
+			const auto* vp = static_cast<const double*>(toView.At("ViewportPosition"));
+			const auto* sz = static_cast<const double*>(size.At("ReturnValue"));
+			if (!vp || !sz) return false;
+			a_x = vp[0];
+			a_y = vp[1];
+			a_wOut = sz[0] * a_scaleX;
+			a_hOut = sz[1] * a_scaleY;
+			return a_wOut > 0.0 && a_hOut > 0.0;
+		}
+
+		// does the widget's class (or a base of it) draw something itself: images, text, progress bars, borders
+		bool DrawsItself(UE::UClass* a_cls)
+		{
+			for (UE::UStruct* s = a_cls; s; s = s->superStruct) {
+				const std::string n = ue::NameOf(s);
+				if (n == "Image" || n == "TextBlock" || n == "RichTextBlock" || n == "ProgressBar" || n == "Border" || n == "CommonTextBlock" ||
+					n == "MultiLineEditableText" || n == "EditableText") return true;
+			}
+			return false;
+		}
+
+		// the union of the rectangles of everything the element draws (visible, not faded out); false = nothing drawn
+		struct DrawnWalk { double l = 1e9, t = 1e9, r = -1e9, b = -1e9; int count = 0; double sx = 1, sy = 1; };
+		void DrawnVisit(UE::UObject* a_w, int a_depth, DrawnWalk& a_d)
+		{
+			if (!a_w || a_depth > 24 || ++a_d.count > 400) return;
+			const auto vis = Visibility(a_w);
+			if (vis == kHidden || vis == kCollapsed || Opacity(a_w) <= 0.02f) return;
+			auto* cls = a_w->GetClass();
+			if (DrawsItself(cls)) {
+				double x, y, w, h;
+				if (MeasureRect(a_w, a_d.sx, a_d.sy, x, y, w, h)) {
+					a_d.l = std::min(a_d.l, x); a_d.t = std::min(a_d.t, y); a_d.r = std::max(a_d.r, x + w); a_d.b = std::max(a_d.b, y + h);
+				}
+				return;
+			}
+			if (UserWidgetClass() && cls->IsChildOf(UserWidgetClass())) {
+				DrawnVisit(ObjProp(ObjProp(a_w, "WidgetTree"), "RootWidget"), a_depth + 1, a_d);
+			}
+			if (PanelClass() && cls->IsChildOf(PanelClass())) {
+				auto* slots = ue::At<RawArray>(a_w, Off(cls, "Slots"));
+				for (std::int32_t i = 0; slots && slots->data && i < slots->num && i < 256; ++i) {
+					DrawnVisit(ObjProp(slots->data[i], "Content"), a_depth + 1, a_d);
+				}
+			} else if (Off(cls, "Content") >= 0) {   // a content widget (SizeBox, ScaleBox, RetainerBox, InvalidationBox ...)
+				DrawnVisit(ObjProp(a_w, "Content"), a_depth + 1, a_d);
+			}
+			if (auto* displayed = ObjProp(a_w, "DisplayedWidget")) {
+				DrawnVisit(displayed, a_depth + 1, a_d);
+			}
+		}
+
 		bool Measure(UE::UObject* a_w, Tracked& a_t)
 		{
 			ue::Call geom(a_w, L"GetCachedGeometry");
@@ -438,6 +512,21 @@ namespace hud
 			a_t.baseVX = a_t.vx - a_t.lastX;   // the geometry was painted with the offset written last frame
 			a_t.baseVY = a_t.vy - a_t.lastY;
 			a_t.measured = a_t.vw > 0.0 && a_t.vh > 0.0;
+			// what it draws, clipped to its box
+			DrawnWalk d;
+			d.sx = a_t.lastSX;
+			d.sy = a_t.lastSY;
+			DrawnVisit(a_w, 0, d);
+			a_t.drawn = d.r > d.l && d.b > d.t;
+			if (a_t.drawn) {
+				a_t.dx = std::max(d.l, a_t.vx);
+				a_t.dy = std::max(d.t, a_t.vy);
+				a_t.dw = std::min(d.r, a_t.vx + a_t.vw) - a_t.dx;
+				a_t.dh = std::min(d.b, a_t.vy + a_t.vh) - a_t.dy;
+				a_t.drawn = a_t.dw > 0.0 && a_t.dh > 0.0;
+				a_t.baseDX = a_t.dx - a_t.lastX;
+				a_t.baseDY = a_t.dy - a_t.lastY;
+			}
 			return a_t.measured;
 		}
 
@@ -511,13 +600,13 @@ namespace hud
 					const double insetX = (1.0 - all[i].visibleW) * 0.5 * t.vw;   // the undrawn margin may leave the screen
 					ox = std::clamp(ox, -(t.baseVX + insetX), std::max(-(t.baseVX + insetX), g_viewW - t.baseVX - t.vw + insetX));
 					oy = std::clamp(oy, -t.baseVY, std::max(-t.baseVY, g_viewH - t.baseVY - t.vh));
-					if (a_s.noOverlap && t.vw > 0.0 && t.vh > 0.0) {
-						// and against the neighbours' edges, from where the rectangle is now (measured) to where it wants to go
-						const Rect me{ true, t.vx, t.vy, t.vx + t.vw, t.vy + t.vh };
+					if (a_s.noOverlap && t.drawn) {
+						// and against the neighbours' DRAWN edges, from where this element's art is now (measured) to where it wants to go
+						const Rect me{ true, t.dx, t.dy, t.dx + t.dw, t.dy + t.dh };
 						double lMin, lMax, tMin, tMax;
 						NeighbourLimits(a_s, i, me, rects, lMin, lMax, tMin, tMax);
-						if (lMin <= lMax) ox = std::clamp(ox, lMin - t.baseVX, lMax - t.baseVX);
-						if (tMin <= tMax) oy = std::clamp(oy, tMin - t.baseVY, tMax - t.baseVY);
+						if (lMin <= lMax) ox = std::clamp(ox, lMin - t.baseDX, lMax - t.baseDX);
+						if (tMin <= tMax) oy = std::clamp(oy, tMin - t.baseDY, tMax - t.baseDY);
 					}
 				}
 				if (all[i].moveViaSlot && ApplySlotShift(w, t, ox, oy)) {
@@ -610,6 +699,13 @@ namespace hud
 				st.baseVX = t.baseVX;
 				st.insetX = (1.0 - all[i].visibleW) * 0.5 * t.vw;
 				st.baseVY = t.baseVY;
+				st.drawn = t.drawn;
+				st.dvx = t.dx;
+				st.dvy = t.dy;
+				st.dvw = t.dw;
+				st.dvh = t.dh;
+				st.baseDX = t.baseDX;
+				st.baseDY = t.baseDY;
 				std::scoped_lock l(g_lock);
 				g_status[i] = st;
 			}
@@ -676,16 +772,16 @@ namespace hud
 			return true;
 		}
 		const auto& st = a_all[a_i];
-		if (st.vw <= 0.0 || st.vh <= 0.0) return true;
+		if (!st.drawn) return true;
 		std::vector<Rect> rects(a_all.size());
 		for (std::size_t j = 0; j < a_all.size(); ++j) {
 			const auto& o = a_all[j];
-			if (o.found && o.measured && o.vw > 0.0 && o.vh > 0.0) rects[j] = { true, o.vx, o.vy, o.vx + o.vw, o.vy + o.vh };
+			if (o.found && o.measured && o.drawn) rects[j] = { true, o.dvx, o.dvy, o.dvx + o.dvw, o.dvy + o.dvh };
 		}
-		const Rect me{ true, st.vx, st.vy, st.vx + st.vw, st.vy + st.vh };
+		const Rect me{ true, st.dvx, st.dvy, st.dvx + st.dvw, st.dvy + st.dvh };
 		double lMin, lMax, tMin, tMax;
 		NeighbourLimits(a_s, a_i, me, rects, lMin, lMax, tMin, tMax);
-		const double leftAtZero = st.baseVX + a_withX, topAtZero = st.baseVY + a_withY;
+		const double leftAtZero = st.baseDX + a_withX, topAtZero = st.baseDY + a_withY;   // the ART's left with the slider at 0
 		if (lMin <= lMax) {
 			a_minX = std::max(a_minX, lMin - leftAtZero);
 			a_maxX = std::min(a_maxX, lMax - leftAtZero);
@@ -724,7 +820,7 @@ namespace hud
 			els[all[i].key] = s.found ? json{ { "found", true }, { "widget", s.widget }, { "base", { s.baseX, s.baseY, s.baseScale } },
 												{ "now", { s.x, s.y, s.scale } }, { "opacity", s.opacity }, { "visibility", s.visibility },
 												{ "forced_visible", s.forcedVisible }, { "measured", s.measured },
-												{ "rect", { s.vx, s.vy, s.vw, s.vh } }, { "viewport", { s.viewW, s.viewH } } }
+												{ "rect", { s.vx, s.vy, s.vw, s.vh } }, { "drawn", s.drawn ? json{ s.dvx, s.dvy, s.dvw, s.dvh } : json(nullptr) }, { "viewport", { s.viewW, s.viewH } } }
 									  : json{ { "found", false } };
 		}
 		return { { "hud_found", HudFound() }, { "elements", els } };

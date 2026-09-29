@@ -35,6 +35,9 @@ namespace hud
 		double      vx = 0, vy = 0, vw = 0, vh = 0, viewW = 0, viewH = 0;
 		double      baseVX = 0, baseVY = 0;   // the rectangle's top-left with NO offset applied (fixed at measurement)
 		double      insetX = 0;               // the undrawn margin on each side (elements::Element::visibleW), in units
+		// what the element actually DRAWS (its visible images, text and bars), for the collision (2026-09-29)
+		bool        drawn = false;
+		double      dvx = 0, dvy = 0, dvw = 0, dvh = 0, baseDX = 0, baseDY = 0;
 	};
 
 	// The offset range an element's OWN slider may take without the element leaving the screen, in layout units:
