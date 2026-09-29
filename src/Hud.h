@@ -27,7 +27,16 @@ namespace hud
 		float       opacity = 1.0f;
 		int         visibility = -1;                       // ESlateVisibility: 0 Visible, 1 Collapsed, 2 Hidden, 3/4 hit-test-invisible
 		bool        forcedVisible = false;                 // "Always visible" is holding it up now
+		// the element's rectangle on screen in viewport pixels (as drawn, with this mod's offset and scale in it) and
+		// the viewport's size - the page's slider bounds come from these (2026-09-29: nothing may leave the screen)
+		bool        measured = false;
+		double      vx = 0, vy = 0, vw = 0, vh = 0, viewW = 0, viewH = 0;
 	};
+
+	// The offset range an element may take without leaving the screen, from its measured rectangle: [minX, maxX] and
+	// [minY, maxY] around the element's OWN offset (the rectangle was measured with that offset applied). False when
+	// the element has not been measured; the page then falls back to the fixed range.
+	bool OffsetRange(const ElementStatus& a_st, double a_ownX, double a_ownY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY);
 
 	bool                       HudFound();   // any thread
 	std::vector<ElementStatus> Statuses();   // any thread, in elements::All() order

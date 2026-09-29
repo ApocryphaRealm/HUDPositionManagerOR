@@ -25,7 +25,11 @@ namespace hud
 			bool        hiddenByUs = false;
 			std::uint8_t visibleBefore = kSelfHitTestInvisible;
 			bool        forced = false;     // "Always visible" is holding it up
+			bool        measured = false;   // the rectangle below is fresh enough to bound the sliders
+			double      vx = 0, vy = 0, vw = 0, vh = 0;
+			ULONGLONG   measuredAt = 0;
 		};
+		double g_viewW = 0, g_viewH = 0;
 
 		std::vector<Tracked> g_el(elements::Count());
 		ue::Handle           g_layout;
@@ -274,6 +278,64 @@ namespace hud
 			return held;
 		}
 
+		// ---- the element's rectangle on screen (viewport pixels) ----
+		// UWidget::GetCachedGeometry (the geometry it was last drawn with, its render transform included), then the
+		// engine's own SlateBlueprintLibrary::LocalToViewport of its (0,0) and GetLocalSize; the viewport's size from
+		// WidgetLayoutLibrary::GetViewportSize. All through ProcessEvent, at most twice a second per element.
+		UE::UObject* SlateLib() { static auto* o = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/UMG.Default__SlateBlueprintLibrary"); return o; }
+		UE::UObject* LayoutLib() { static auto* o = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/UMG.Default__WidgetLayoutLibrary"); return o; }
+
+		bool Measure(UE::UObject* a_w, Tracked& a_t)
+		{
+			ue::Call geom(a_w, L"GetCachedGeometry");
+			if (!geom || !SlateLib() || !LayoutLib()) {
+				return false;
+			}
+			geom.Run();
+			const void* g = geom.At("ReturnValue");
+			const auto  gsize = static_cast<std::size_t>(reinterpret_cast<UE::UStruct*>(geom.Function())->propertiesSize);   // the FGeometry alone
+			if (!g || gsize == 0 || gsize > 128) {
+				return false;
+			}
+			ue::Call toView(SlateLib(), L"LocalToViewport");
+			ue::Call size(SlateLib(), L"GetLocalSize");
+			ue::Call view(LayoutLib(), L"GetViewportSize");
+			ue::Call dpi(LayoutLib(), L"GetViewportScale");   // pixels per viewport unit: the size below comes in pixels
+			if (!toView || !size || !view || !dpi || !toView.At("Geometry") || !size.At("Geometry")) {
+				return false;
+			}
+			std::memcpy(toView.At("Geometry"), g, gsize);
+			std::memcpy(size.At("Geometry"), g, gsize);
+			toView.Set("WorldContextObject", a_w);
+			const double zero[2] = { 0.0, 0.0 };
+			if (void* lc = toView.At("LocalCoordinate")) {
+				std::memcpy(lc, zero, sizeof(zero));
+			}
+			view.Set("WorldContextObject", a_w);
+			dpi.Set("WorldContextObject", a_w);
+			if (!toView.Run() || !size.Run() || !view.Run() || !dpi.Run()) {
+				return false;
+			}
+			const auto* scalePtr = static_cast<const float*>(dpi.At("ReturnValue"));
+			const double dpiScale = scalePtr && *scalePtr > 0.0f ? *scalePtr : 1.0;
+			const auto* vp = static_cast<const double*>(toView.At("ViewportPosition"));
+			const auto* sz = static_cast<const double*>(size.At("ReturnValue"));
+			const auto* vs = static_cast<const double*>(view.At("ReturnValue"));
+			if (!vp || !sz || !vs || vs[0] <= 0.0 || vs[1] <= 0.0) {
+				return false;
+			}
+			a_t.vx = vp[0];
+			a_t.vy = vp[1];
+			a_t.vw = sz[0] * a_t.lastSX;   // GetLocalSize is the layout size; the render scale is this mod's own
+			a_t.vh = sz[1] * a_t.lastSY;
+			// ViewportPosition, GetLocalSize and RenderTranslation share the layout's units (1920x1080 at every DPI, the
+			// health bar's centre measured at exactly 960 on a 3200x1800 display); GetViewportSize is in pixels
+			g_viewW = vs[0] / dpiScale;
+			g_viewH = vs[1] / dpiScale;
+			a_t.measured = a_t.vw > 0.0 && a_t.vh > 0.0;
+			return a_t.measured;
+		}
+
 		// the offset an element gets: its own, plus the offset of what it moves with (chains followed, loops cut)
 		std::pair<double, double> Offset(const settings::Values& a_s, std::size_t a_i, int a_depth = 0)
 		{
@@ -325,8 +387,19 @@ namespace hud
 					t.haveBase = true;
 					t.wrote = false;
 				}
-				const auto [ox, oy] = a_s.enabled ? Offset(a_s, i) : std::pair<double, double>{ 0.0, 0.0 };
+				auto [ox, oy] = a_s.enabled ? Offset(a_s, i) : std::pair<double, double>{ 0.0, 0.0 };
 				const double scale = a_s.enabled ? e.scale : 1.0;
+				// the rectangle on screen, twice a second; the offset is clamped so the element never leaves the screen
+				const ULONGLONG nowMs = GetTickCount64();
+				if (nowMs - t.measuredAt >= 500) {
+					t.measuredAt = nowMs;
+					Measure(w, t);
+				}
+				if (t.measured && a_s.enabled) {
+					const double baseVX = t.vx - t.lastX, baseVY = t.vy - t.lastY;   // where the rectangle sits with no offset
+					ox = std::clamp(ox, -baseVX, std::max(-baseVX, g_viewW - baseVX - t.vw));
+					oy = std::clamp(oy, -baseVY, std::max(-baseVY, g_viewH - baseVY - t.vh));
+				}
 				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scale, wantSY = t.baseSY * scale;
 				const bool   atBase = ox == 0.0 && oy == 0.0 && scale == 1.0;
 				if (!atBase && !t.pivotSet) {
@@ -403,6 +476,13 @@ namespace hud
 				st.opacity = Opacity(w);
 				st.visibility = Visibility(w);
 				st.forcedVisible = t.forced;
+				st.measured = t.measured;
+				st.vx = t.vx;
+				st.vy = t.vy;
+				st.vw = t.vw;
+				st.vh = t.vh;
+				st.viewW = g_viewW;
+				st.viewH = g_viewH;
 				std::scoped_lock l(g_lock);
 				g_status[i] = st;
 			}
@@ -437,6 +517,23 @@ namespace hud
 		Apply(settings::Snapshot(), gameplay);
 	}
 
+	bool OffsetRange(const ElementStatus& a_st, double a_ownX, double a_ownY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY)
+	{
+		if (!a_st.measured || a_st.viewW <= 0.0 || a_st.viewH <= 0.0) {
+			return false;
+		}
+		// the rectangle was measured with the element's WHOLE offset applied (its own plus what it moves with);
+		// (st.x - baseX) is that whole offset, of which a_ownX is the slider's part
+		const double wholeX = a_st.x - a_st.baseX, wholeY = a_st.y - a_st.baseY;
+		const double leftAtZero = a_st.vx - wholeX + (wholeX - a_ownX);   // the rectangle's left with the slider at 0
+		const double topAtZero = a_st.vy - wholeY + (wholeY - a_ownY);
+		a_minX = -leftAtZero;
+		a_maxX = std::max(a_minX, a_st.viewW - leftAtZero - a_st.vw);
+		a_minY = -topAtZero;
+		a_maxY = std::max(a_minY, a_st.viewH - topAtZero - a_st.vh);
+		return true;
+	}
+
 	bool HudFound()
 	{
 		std::scoped_lock l(g_lock);
@@ -458,7 +555,8 @@ namespace hud
 			const auto& s = st[i];
 			els[all[i].key] = s.found ? json{ { "found", true }, { "widget", s.widget }, { "base", { s.baseX, s.baseY, s.baseScale } },
 												{ "now", { s.x, s.y, s.scale } }, { "opacity", s.opacity }, { "visibility", s.visibility },
-												{ "forced_visible", s.forcedVisible } }
+												{ "forced_visible", s.forcedVisible }, { "measured", s.measured },
+												{ "rect", { s.vx, s.vy, s.vw, s.vh } }, { "viewport", { s.viewW, s.viewH } } }
 									  : json{ { "found", false } };
 		}
 		return { { "hud_found", HudFound() }, { "elements", els } };

@@ -33,7 +33,9 @@ namespace page
 			dl->AddCircleFilled(ImVec2(p.x + r + (*a_v ? w - h : 0.0f), p.y + r), r - 2.0f, IM_COL32(240, 240, 240, 255), 32);
 			ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
 			ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted(a_label);
+			// ImGui's convention: what follows "##" is the id, never shown (the tabs' switches printed it, 2026-09-29)
+			const char* hash = std::strstr(a_label, "##");
+			ImGui::TextUnformatted(a_label, hash ? hash : nullptr);
 			ImGui::PopID();
 			return pressed;
 		}
@@ -79,12 +81,22 @@ namespace page
 				Hint(TR("HPM_Found", "In your HUD. Changes show at once."));
 			}
 			bool changed = false;
+			// the sliders' range is the screen: as far as the element can go before its edge leaves the viewport, from its
+			// measured rectangle (hud::OffsetRange); the fixed range until it has been measured
+			double minX = -settings::kMoveX, maxX = settings::kMoveX, minY = -settings::kMoveY, maxY = settings::kMoveY;
+			float  maxScale = settings::kScaleMax;
+			if (hud::OffsetRange(a_st, e.x, e.y, minX, maxX, minY, maxY) && a_st.vw > 0.0 && a_st.vh > 0.0 && e.scale > 0.0f) {
+				const double unscaledW = a_st.vw / e.scale, unscaledH = a_st.vh / e.scale;
+				maxScale = static_cast<float>(std::clamp(std::min(a_st.viewW / unscaledW, a_st.viewH / unscaledH), static_cast<double>(settings::kScaleMin), static_cast<double>(settings::kScaleMax)));
+			}
+			e.x = std::clamp(e.x, static_cast<float>(minX), static_cast<float>(maxX));
+			e.y = std::clamp(e.y, static_cast<float>(minY), static_cast<float>(maxY));
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveX", "Move left / right")) + id + "x").c_str(), &e.x, -settings::kMoveX, settings::kMoveX, "%.0f");
+			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveX", "Move left / right")) + id + "x").c_str(), &e.x, static_cast<float>(minX), static_cast<float>(maxX), "%.0f");
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveY", "Move up / down")) + id + "y").c_str(), &e.y, -settings::kMoveY, settings::kMoveY, "%.0f");
+			changed |= ImGui::SliderFloat((std::string(TR("HPM_MoveY", "Move up / down")) + id + "y").c_str(), &e.y, static_cast<float>(minY), static_cast<float>(maxY), "%.0f");
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_Size", "Size")) + id + "s").c_str(), &e.scale, settings::kScaleMin, settings::kScaleMax, "%.2fx");
+			changed |= ImGui::SliderFloat((std::string(TR("HPM_Size", "Size")) + id + "s").c_str(), &e.scale, settings::kScaleMin, maxScale, "%.2fx");
 			changed |= Switch((std::string(TR("HPM_Hide", "Hide")) + id + "h").c_str(), &e.hide);
 			if (el.fades) {
 				changed |= Switch((std::string(TR("HPM_AlwaysOne", "Always visible")) + id + "a").c_str(), &e.alwaysVisible);

@@ -61,6 +61,7 @@ namespace ue
 			}
 		}
 		explicit operator bool() const { return m_fn != nullptr; }
+		UE::UFunction* Function() const { return m_fn; }
 		void* At(std::string_view a_name)
 		{
 			if (!m_fn) {
