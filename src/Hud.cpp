@@ -35,6 +35,7 @@ namespace hud
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
 			bool        havePadBase = false, padWrote = false;
 			float       basePad[4]{}, lastPad[4]{};
+			double      slotDx = 0, slotDy = 0;   // the shift applied through the slot (the geometry moved by it, the transform did not)
 		};
 		double g_viewW = 0, g_viewH = 0;
 
@@ -328,6 +329,8 @@ namespace hud
 			}
 			std::memcpy(a_t.lastPad, want, sizeof(want));
 			a_t.padWrote = true;
+			a_t.slotDx = a_dx;
+			a_t.slotDy = a_dy;
 			return true;
 		}
 
@@ -509,8 +512,10 @@ namespace hud
 			// health bar's centre measured at exactly 960 on a 3200x1800 display); GetViewportSize is in pixels
 			g_viewW = vs[0] / dpiScale;
 			g_viewH = vs[1] / dpiScale;
-			a_t.baseVX = a_t.vx - a_t.lastX;   // the geometry was painted with the offset written last frame
-			a_t.baseVY = a_t.vy - a_t.lastY;
+			// the geometry was painted with the offset written last frame - through the transform, or through the slot
+			// (moveViaSlot; without this the bound chased its own shift twice a second and the wheel flipped between two spots)
+			a_t.baseVX = a_t.vx - a_t.lastX - a_t.slotDx;
+			a_t.baseVY = a_t.vy - a_t.lastY - a_t.slotDy;
 			a_t.measured = a_t.vw > 0.0 && a_t.vh > 0.0;
 			// what it draws, clipped to its box
 			DrawnWalk d;
@@ -524,8 +529,8 @@ namespace hud
 				a_t.dw = std::min(d.r, a_t.vx + a_t.vw) - a_t.dx;
 				a_t.dh = std::min(d.b, a_t.vy + a_t.vh) - a_t.dy;
 				a_t.drawn = a_t.dw > 0.0 && a_t.dh > 0.0;
-				a_t.baseDX = a_t.dx - a_t.lastX;
-				a_t.baseDY = a_t.dy - a_t.lastY;
+				a_t.baseDX = a_t.dx - a_t.lastX - a_t.slotDx;
+				a_t.baseDY = a_t.dy - a_t.lastY - a_t.slotDy;
 			}
 			return a_t.measured;
 		}
