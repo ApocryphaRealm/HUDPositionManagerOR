@@ -57,6 +57,8 @@ namespace settings
 				out.emplace_back(s + ".fX", std::format("{:.2f}", e.x));   // percent of the screen
 				out.emplace_back(s + ".fY", std::format("{:.2f}", e.y));
 				out.emplace_back(s + ".fScale", f(e.scale, 2));
+				out.emplace_back(s + ".fLength", f(e.stretchX, 2));
+				out.emplace_back(s + ".fHeight", f(e.stretchY, 2));
 				out.emplace_back(s + ".bHide", e.hide ? "1" : "0");
 				if (all[i].fades) {
 					out.emplace_back(s + ".bAlwaysVisible", e.alwaysVisible ? "1" : "0");
@@ -75,6 +77,8 @@ namespace settings
 				e.x = std::clamp(e.x, -kMoveX, kMoveX);
 				e.y = std::clamp(e.y, -kMoveY, kMoveY);
 				e.scale = std::clamp(e.scale, kScaleMin, kScaleMax);
+				e.stretchX = std::clamp(e.stretchX, kScaleMin, kScaleMax);
+				e.stretchY = std::clamp(e.stretchY, kScaleMin, kScaleMax);
 				if (!elements::All()[i].fades) {
 					e.alwaysVisible = false;
 				}
@@ -177,10 +181,12 @@ namespace settings
 				if (const auto* s = Get(a_e, k + ".fX")) e.x = static_cast<float>(std::atof(s->c_str()));
 				if (const auto* s = Get(a_e, k + ".fY")) e.y = static_cast<float>(std::atof(s->c_str()));
 				if (const auto* s = Get(a_e, k + ".fScale")) e.scale = static_cast<float>(std::atof(s->c_str()));
+				if (const auto* s = Get(a_e, k + ".fLength")) e.stretchX = static_cast<float>(std::atof(s->c_str()));
+				if (const auto* s = Get(a_e, k + ".fHeight")) e.stretchY = static_cast<float>(std::atof(s->c_str()));
 				if (const auto* s = Get(a_e, k + ".bHide")) e.hide = Flag(*s);
 				if (const auto* s = Get(a_e, k + ".bAlwaysVisible")) e.alwaysVisible = Flag(*s);
 				if (const auto* s = Get(a_e, k + ".sMoveWith")) e.moveWith = *s;
-				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.hide) ? 1 : 0;
+				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.stretchX != 1.0f || e.stretchY != 1.0f || e.hide) ? 1 : 0;
 			}
 			return moved;
 		}

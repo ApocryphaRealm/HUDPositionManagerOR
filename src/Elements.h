@@ -57,15 +57,17 @@ namespace elements
 		// an element this mod CREATES on the HUD from one of the game's own widget classes (found by class name), because
 		// the game has no such widget: the Level text (2026-09-29)
 		const char*                      createClass = nullptr;
+		// a resource bar: its tab gets Length and Height beside Size (2026-09-29)
+		bool                             bar = false;
 	};
 
 	inline const std::vector<Element>& All()
 	{
 		static const std::vector<Element> kAll{
-			{ "Health", "Health", { L"WBP_ModernHud_Health_C" }, { "Health", "HealthBar" }, true, nullptr, 1.0f, false, 0.5f },
-			{ "Magicka", "Magicka", { L"WBP_ModernHud_Magicka_C" }, { "Magicka", "MagickaBar" }, true, "Health", 1.0f, false, 0.5f },
-			{ "Fatigue", "Fatigue", { L"WBP_ModernHud_Fatigue_C" }, { "Fatigue", "FatigueBar" }, true, "Health", 1.0f, false, 0.5f },
-			{ "Breath", "Breath meter", { L"WBP_ModernHud_Breath_C" }, { "WBP_ModernHud_Breath", "Breath" }, true, nullptr, 1.0f, false, 1.0f, { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 0.6) } } }, { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 1.0) } } } },
+			{ "Health", "Health", { L"WBP_ModernHud_Health_C" }, { "Health", "HealthBar" }, true, nullptr, 1.0f, false, 0.5f, {}, {}, nullptr, true },
+			{ "Magicka", "Magicka", { L"WBP_ModernHud_Magicka_C" }, { "Magicka", "MagickaBar" }, true, "Health", 1.0f, false, 0.5f, {}, {}, nullptr, true },
+			{ "Fatigue", "Fatigue", { L"WBP_ModernHud_Fatigue_C" }, { "Fatigue", "FatigueBar" }, true, "Health", 1.0f, false, 0.5f, {}, {}, nullptr, true },
+			{ "Breath", "Breath meter", { L"WBP_ModernHud_Breath_C" }, { "WBP_ModernHud_Breath", "Breath" }, true, nullptr, 1.0f, false, 1.0f, { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 0.6) } } }, { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 1.0) } } }, nullptr, true },
 			{ "Compass", "Compass", { L"WBP_ModernHud_Compass_C" }, { "Compass" }, true, nullptr, 0.37f },
 			// the quick wheel shown while playing (the owner, 2026-09-29: "change the location or position of the wheel menu in game
 			// only not in the menu") - the HUD layout's own instance; the menu's quick-keys page is another class and is not touched
@@ -74,7 +76,7 @@ namespace elements
 			{ "WeaponIcon", "Weapon icon", { L"WBP_ModernHud_WeaponIcon_C" }, { "WeaponIcon" }, false, nullptr },
 			{ "MagicIcon", "Spell icon", { L"WBP_ModernHud_MagicIcon_C" }, { "MagicIcon" }, false, nullptr },
 			{ "EffectIcons", "Active effects", { L"WBP_ModernHud_EffectIcons_C" }, { "EffectIcons" }, false, nullptr },
-			{ "EnemyHealth", "Enemy health", { L"WBP_ModernHud_StatusBarEnemy_C" }, { "StatusBarEnemy", "EnemyHealth" }, false, nullptr, 1.0f, false, 1.0f, { { L"SetProgress", { ArgDouble("InProgress", 0.75), ArgBool("IsPreview", true) } } }, { { L"SetProgress", { ArgDouble("InProgress", 0.0), ArgBool("IsPreview", true) } } } },
+			{ "EnemyHealth", "Enemy health", { L"WBP_ModernHud_StatusBarEnemy_C" }, { "StatusBarEnemy", "EnemyHealth" }, false, nullptr, 1.0f, false, 1.0f, { { L"SetProgress", { ArgDouble("InProgress", 0.75), ArgBool("IsPreview", true) } } }, { { L"SetProgress", { ArgDouble("InProgress", 0.0), ArgBool("IsPreview", true) } } }, nullptr, true },
 			{ "SneakEye", "Sneak eye", { L"WBP_ModernHud_SneakEye_C" }, { "SneakEye" }, false, nullptr, 1.0f, false, 1.0f, { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", true) } }, { L"Update Sneak Level", { ArgDouble("InSneakLevel", 0.5) } } }, { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", false) } } } },
 			{ "LevelUp", "Level-up gauge", { L"WBP_ModernHud_LevelUpGauge_C" }, { "LevelUpGauge" }, false, nullptr, 1.0f, false, 1.0f, { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", true) } } }, { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", false) } } } },
 			// the player's level as a text of the game's own prefab, created by this mod (createClass); "Level" is its tab

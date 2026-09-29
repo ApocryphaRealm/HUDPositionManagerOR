@@ -14,6 +14,8 @@ namespace settings
 		float       x = 0.0f;              // [<key>] fX - right is positive, a PERCENTAGE of the screen's width (-100..100)
 		float       y = 0.0f;              // [<key>] fY - down is positive, a percentage of the screen's height
 		float       scale = 1.0f;          // [<key>] fScale - about the element's own centre
+		float       stretchX = 1.0f;       // [<key>] fLength - the scale along the element's width, on top of fScale (the bars)
+		float       stretchY = 1.0f;       // [<key>] fHeight - the same for its height
 		bool        hide = false;          // [<key>] bHide
 		bool        alwaysVisible = false; // [<key>] bAlwaysVisible - only for the elements the game fades on its own
 		std::string moveWith;              // [<key>] sMoveWith - another element's key, or empty

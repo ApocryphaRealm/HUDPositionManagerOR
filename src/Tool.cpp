@@ -21,7 +21,7 @@ namespace tool
 			json       els = json::object();
 			for (std::size_t i = 0; i < elements::Count(); ++i) {
 				const auto& e = v.elements[i];
-				els[elements::All()[i].key] = { { "x", e.x }, { "y", e.y }, { "scale", e.scale }, { "hide", e.hide }, { "alwaysVisible", e.alwaysVisible },
+				els[elements::All()[i].key] = { { "x", e.x }, { "y", e.y }, { "scale", e.scale }, { "length", e.stretchX }, { "height", e.stretchY }, { "hide", e.hide }, { "alwaysVisible", e.alwaysVisible },
 					{ "moveWith", e.moveWith } };
 			}
 			return { { "enabled", v.enabled }, { "linkBars", v.linkBars }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "snapEdges", v.snapEdges }, { "snapDistance", v.snapDistance }, { "preview", v.preview }, { "elements", els } };
@@ -54,8 +54,8 @@ namespace tool
 			bool ok = true;
 			settings::Update([&](settings::Values& s) {
 				auto& e = s.elements[static_cast<std::size_t>(i)];
-				if ((key == "x" || key == "y" || key == "scale") && val.is_number()) {
-					(key == "x" ? e.x : key == "y" ? e.y : e.scale) = val.get<float>();
+				if ((key == "x" || key == "y" || key == "scale" || key == "length" || key == "height") && val.is_number()) {
+					(key == "x" ? e.x : key == "y" ? e.y : key == "scale" ? e.scale : key == "length" ? e.stretchX : e.stretchY) = val.get<float>();
 				} else if ((key == "hide" || key == "alwaysVisible") && val.is_boolean()) {
 					(key == "hide" ? e.hide : e.alwaysVisible) = val.get<bool>();
 				} else if (key == "moveWith" && val.is_string()) {

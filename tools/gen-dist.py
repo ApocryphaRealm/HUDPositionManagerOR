@@ -598,6 +598,45 @@ NEW = {
         "Poziom {}",
         "Úroveň {}",
     ],
+    "HPM_Length": [
+        "Length",
+        "長さ",
+        "길이",
+        "长度",
+        "Длина",
+        "Länge",
+        "Longueur",
+        "Longitud",
+        "Lunghezza",
+        "Długość",
+        "Délka",
+    ],
+    "HPM_Height": [
+        "Height",
+        "高さ",
+        "높이",
+        "高度",
+        "Высота",
+        "Höhe",
+        "Hauteur",
+        "Altura",
+        "Altezza",
+        "Wysokość",
+        "Výška",
+    ],
+    "HPM_StretchHint": [
+        "Length and Height stretch the bar on one side each, on top of Size.",
+        "「長さ」と「高さ」は「大きさ」に加えて、バーを一方向ずつ伸縮させます。",
+        "길이와 높이는 크기에 더해 막대를 한 방향씩 늘리거나 줄입니다.",
+        "长度和高度在大小之外分别沿一个方向拉伸条形。",
+        "Длина и высота растягивают полосу по одной оси каждая, поверх размера.",
+        "Länge und Höhe strecken die Leiste je auf einer Seite, zusätzlich zur Größe.",
+        "Longueur et Hauteur étirent la barre sur un côté chacune, en plus de la Taille.",
+        "Longitud y Altura estiran la barra en un lado cada una, además del Tamaño.",
+        "Lunghezza e Altezza allungano la barra su un lato ciascuna, oltre alla Dimensione.",
+        "Długość i Wysokość rozciągają pasek każda po jednej stronie, oprócz Rozmiaru.",
+        "Délka a Výška natahují lištu každá v jednom směru, nad rámec Velikosti.",
+    ],
 }
 
 
@@ -670,7 +709,7 @@ ini = [
     "",
 ]
 for key, fades in ELEMENTS:
-    ini += ["[%s]" % key, "fX=0", "fY=0", "fScale=1.00", "bHide=0"]
+    ini += ["[%s]" % key, "fX=0", "fY=0", "fScale=1.00", "fLength=1.00", "fHeight=1.00", "bHide=0"]
     if fades:
         ini.append("bAlwaysVisible=0")
     ini += ["sMoveWith=", ""]

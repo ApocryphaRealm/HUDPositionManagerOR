@@ -112,7 +112,7 @@ namespace hud
 				// only a widget the owner has placed is an obstacle: a game-placed one may be hidden in a way nothing readable
 				// shows (the enemy health bar behind a retainer box's material) and must not box the others in (2026-09-29)
 				const auto& oe = a_s.elements[j];
-				if (oe.x == 0.0f && oe.y == 0.0f && oe.scale == 1.0f) continue;
+				if (oe.x == 0.0f && oe.y == 0.0f && oe.scale == 1.0f && oe.stretchX == 1.0f && oe.stretchY == 1.0f) continue;
 				const bool bandY = o.t < a_me.b - eps && o.b > a_me.t + eps;   // side by side
 				const bool bandX = o.l < a_me.r - eps && o.r > a_me.l + eps;   // one above the other
 				if (bandY) {
@@ -138,7 +138,7 @@ namespace hud
 				const Rect& o = a_rects[j];
 				if (j == a_i || !o.valid || a_s.elements[j].hide || MovesWith(a_s, j, a_i)) continue;
 				const auto& oe = a_s.elements[j];
-				if (oe.x == 0.0f && oe.y == 0.0f && oe.scale == 1.0f) continue;
+				if (oe.x == 0.0f && oe.y == 0.0f && oe.scale == 1.0f && oe.stretchX == 1.0f && oe.stretchY == 1.0f) continue;
 				for (const double mine : { a_me.l, a_me.r }) {
 					for (const double theirs : { o.l, o.r }) {
 						const double d = theirs - mine;
@@ -919,6 +919,7 @@ namespace hud
 				ox = ox / 100.0 * unitW;
 				oy = oy / 100.0 * unitH;
 				const double scale = a_s.enabled ? e.scale : 1.0;
+				const double scaleX = scale * (a_s.enabled ? e.stretchX : 1.0), scaleY = scale * (a_s.enabled ? e.stretchY : 1.0);   // Length / Height on top of Size
 				// the rectangle on screen, twice a second; the offset is clamped so the element never leaves the screen
 				const ULONGLONG nowMs = GetTickCount64();
 				if (nowMs - t.measuredAt >= 500) {
@@ -944,7 +945,7 @@ namespace hud
 						if (lMin <= lMax) ox = std::clamp(ox, lMin - t.baseDX, lMax - t.baseDX);
 						if (tMin <= tMax) oy = std::clamp(oy, tMin - t.baseDY, tMax - t.baseDY);
 					}
-					if (a_s.snapEdges && a_s.snapDistance > 0.0f && t.drawn && !(e.x == 0.0f && e.y == 0.0f && e.scale == 1.0f)) {
+					if (a_s.snapEdges && a_s.snapDistance > 0.0f && t.drawn && !(e.x == 0.0f && e.y == 0.0f && e.scale == 1.0f && e.stretchX == 1.0f && e.stretchY == 1.0f)) {
 						// the art's edges where the offset puts them, pulled onto the nearest edge of another placed widget's art
 						const double l = t.baseDX + ox, tp = t.baseDY + oy;
 						const Rect me{ true, l, tp, l + t.dw, tp + t.dh };
@@ -958,8 +959,8 @@ namespace hud
 					ox = 0.0;   // moved through the slot; the render transform carries no translation of ours
 					oy = 0.0;
 				}
-				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scale, wantSY = t.baseSY * scale;
-				const bool   atBase = ox == 0.0 && oy == 0.0 && scale == 1.0;
+				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scaleX, wantSY = t.baseSY * scaleY;
+				const bool   atBase = ox == 0.0 && oy == 0.0 && scaleX == 1.0 && scaleY == 1.0;
 				if (!atBase && !t.pivotSet) {
 					// grow and shrink about the element's own centre, as the Skyrim mod does
 					if (const auto* pv = ue::At<double>(w, Off(WidgetClass(), "RenderTransformPivot"))) {
