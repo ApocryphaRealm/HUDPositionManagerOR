@@ -43,15 +43,42 @@ namespace ue
 
 	std::vector<std::int32_t> ObjectPropertiesOfClass(UE::UStruct* a_struct, std::string_view a_className)
 	{
-		// FField: ClassPrivate (FFieldClass*) at +0x08, its Name (FName) first; FProperty is 0x78 bytes and an
-		// FObjectPropertyBase keeps PropertyClass (UClass*) right after, at +0x78 (UE 5.3)
-		constexpr std::ptrdiff_t kFieldClass = 0x08, kPropertyClass = 0x78;
+		// FField: ClassPrivate (FFieldClass*) at +0x08 (CommonLibOB64's FField), the FFieldClass's Name (FName) first.
+		// An FObjectPropertyBase keeps PropertyClass (UClass*) right after FProperty's 0x70 bytes - PROVEN at first use
+		// on UserWidget's WidgetTree property (an object property of class WidgetTree) before anything trusts it: a
+		// wrong offset here fed the engine garbage and crashed the game (2026-09-29 15:15). Nothing is returned until
+		// the proof passes.
+		constexpr std::ptrdiff_t kFieldClass = 0x08;
+		static std::ptrdiff_t s_propertyClass = 0;   // 0 = unproven, -1 = no layout fits
+		const auto fieldTypeName = [](std::uint8_t* f) -> std::string {
+			auto* fieldClass = *reinterpret_cast<std::uint8_t**>(f + kFieldClass);
+			return fieldClass ? Utf8(reinterpret_cast<const UE::FName*>(fieldClass)->ToString()) : std::string();
+		};
+		if (s_propertyClass == 0) {
+			auto* userWidget = UE::StaticFindObject<UE::UStruct>(nullptr, nullptr, L"/Script/UMG.UserWidget");
+			auto* widgetTree = UE::StaticFindObject<UE::UStruct>(nullptr, nullptr, L"/Script/UMG.WidgetTree");
+			std::uint8_t* wtField = nullptr;
+			for (auto* f = userWidget ? reinterpret_cast<std::uint8_t*>(userWidget->childProperties) : nullptr; f; f = *reinterpret_cast<std::uint8_t**>(f + kFieldNext)) {
+				if (Utf8(reinterpret_cast<const UE::FName*>(f + kFieldName)->ToString()) == "WidgetTree") { wtField = f; break; }
+			}
+			if (wtField && widgetTree && fieldTypeName(wtField) == "ObjectProperty") {
+				for (const std::ptrdiff_t cand : { 0x70, 0x78 }) {
+					if (*reinterpret_cast<UE::UStruct**>(wtField + cand) == widgetTree) { s_propertyClass = cand; break; }
+				}
+			}
+			if (s_propertyClass == 0) {
+				s_propertyClass = -1;
+				logger::warn("ue: the object property layout could not be proven on UserWidget::WidgetTree - sound events are not looked up");
+			} else {
+				logger::info("ue: object property class pointer proven at +0x{:X} (UserWidget::WidgetTree -> WidgetTree)", s_propertyClass);
+			}
+		}
 		std::vector<std::int32_t> out;
+		if (s_propertyClass < 0) return out;
 		for (UE::UStruct* s = a_struct; s; s = s->superStruct) {
 			for (auto* f = reinterpret_cast<std::uint8_t*>(s->childProperties); f; f = *reinterpret_cast<std::uint8_t**>(f + kFieldNext)) {
-				auto* fieldClass = *reinterpret_cast<std::uint8_t**>(f + kFieldClass);
-				if (!fieldClass || Utf8(reinterpret_cast<const UE::FName*>(fieldClass)->ToString()) != "ObjectProperty") continue;
-				auto* propClass = *reinterpret_cast<UE::UStruct**>(f + kPropertyClass);
+				if (fieldTypeName(f) != "ObjectProperty") continue;
+				auto* propClass = *reinterpret_cast<UE::UStruct**>(f + s_propertyClass);
 				if (propClass && Utf8(propClass->GetFName().ToString()) == a_className) {
 					out.push_back(*reinterpret_cast<const std::int32_t*>(f + kPropertyOffsetInternal));
 				}
