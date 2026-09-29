@@ -282,7 +282,7 @@ namespace page
 				settings::Update([&](settings::Values& s) { s.noOverlap = v.noOverlap; });
 				logger::info("page: elements stop at each other's edges {}", v.noOverlap ? "on" : "off");
 			}
-			Hint(TR("HPM_NoOverlapHint", "On: a widget you move stops where its edge meets another widget's, so the bars line up without decimal-point work. Off: widgets may overlap."));
+			Hint(TR("HPM_NoOverlapHint", "On: a widget you move stops where its edge meets another widget you have placed, so the bars line up without decimal-point work. Widgets the game still places are never in the way. Off: widgets may overlap."));
 
 			ImGui::SeparatorText(TR("HPM_GroupVisibility", "HUD visibility"));
 			if (Switch(TR("HPM_AlwaysAll", "Always visible"), &v.alwaysVisible)) {

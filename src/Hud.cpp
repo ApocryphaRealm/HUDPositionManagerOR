@@ -82,6 +82,10 @@ namespace hud
 			for (std::size_t j = 0; j < a_rects.size(); ++j) {
 				const Rect& o = a_rects[j];
 				if (j == a_i || !o.valid || a_s.elements[j].hide || MovesWith(a_s, j, a_i)) continue;
+				// only a widget the owner has placed is an obstacle: a game-placed one may be hidden in a way nothing readable
+				// shows (the enemy health bar behind a retainer box's material) and must not box the others in (2026-09-29)
+				const auto& oe = a_s.elements[j];
+				if (oe.x == 0.0f && oe.y == 0.0f && oe.scale == 1.0f) continue;
 				const bool bandY = o.t < a_me.b - eps && o.b > a_me.t + eps;   // side by side
 				const bool bandX = o.l < a_me.r - eps && o.r > a_me.l + eps;   // one above the other
 				if (bandY) {
