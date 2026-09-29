@@ -644,7 +644,7 @@ print("%d keys x %d languages -> %s" % (len(used), len(LANGS), OUT))
 # the INI with the compiled defaults (Settings.h / Elements.h)
 ELEMENTS = [
     ("Health", True), ("Magicka", True), ("Fatigue", True), ("Compass", False), ("Crosshair", False), ("WeaponIcon", False),
-    ("MagicIcon", False), ("EffectIcons", False), ("EnemyHealth", False), ("SneakEye", False), ("LevelUp", True), ("Level", False), ("Info", False),
+    ("MagicIcon", False), ("EffectIcons", False), ("EnemyHealth", False), ("SneakEye", False), ("LevelUp", False), ("Level", False), ("Info", False),
     ("Subtitles", False), ("Breath", False), ("Location", False), ("DamageIndicators", False), ("Notifications", False), ("Tutorial", False), ("QuickWheel", False),
 ]
 ini = [
