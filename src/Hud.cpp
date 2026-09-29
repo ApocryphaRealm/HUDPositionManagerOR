@@ -2,6 +2,8 @@
 
 #include "Settings.h"
 #include "Strings.h"
+
+#include <unordered_map>
 #include "Ue.h"
 
 namespace hud
@@ -36,6 +38,9 @@ namespace hud
 			// the preview: shown by this code while the page is open, with the game's state to put back
 			bool         shownByUs = false;
 			ULONGLONG    previewCalledAt = 0;
+			bool         created = false;        // made by this mod (createClass)
+			int          shownLevel = -1;        // the level the created text shows
+			ULONGLONG    levelCheckedAt = 0;
 			std::vector<std::pair<UE::UObject**, UE::UObject*>> mutedSounds;
 			// the hold (always visible / the preview): what it changed, put back when it ends
 			bool         held = false, previewWas = false;
@@ -267,6 +272,85 @@ namespace hud
 			return found;
 		}
 
+		// a UClass by its short name (the widget blueprints' generated classes are not reachable by a path this code knows)
+		UE::UClass* ClassByName(const char* a_name)
+		{
+			static std::unordered_map<std::string, UE::UClass*> cache;
+			if (auto it = cache.find(a_name); it != cache.end() && it->second && ue::IsLive(it->second)) return it->second;
+			auto* arr = UE::FUObjectArray::GetSingleton();
+			if (!arr) return nullptr;
+			UE::UClass* found = nullptr;
+			arr->LockInternalArray();
+			const std::int32_t n = arr->GetObjectArrayNum();
+			for (std::int32_t i = 0; i < n && !found; ++i) {
+				auto* item = arr->IndexToObject(i);
+				auto* o = item ? reinterpret_cast<UE::UObject*>(item->object) : nullptr;
+				if (o && o->GetClass() && ue::NameOf(o->GetClass()) == "WidgetBlueprintGeneratedClass" && ue::NameOf(o) == a_name) found = static_cast<UE::UClass*>(o);
+			}
+			arr->UnlockInternalArray();
+			cache[a_name] = found;
+			return found;
+		}
+
+		// the text an element of this mod's own shows: the player's level
+		void SetLevelText(UE::UObject* a_w, Tracked& a_t)
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			const int level = player ? static_cast<int>(player->GetLevel()) : 0;
+			if (level == a_t.shownLevel) return;
+			static UE::UObject* textLib = nullptr;
+			if (!textLib) {
+				auto* cls = UE::StaticFindObject<UE::UClass>(nullptr, nullptr, L"/Script/Engine.KismetTextLibrary");
+				textLib = cls ? cls->GetDefaultObject(false) : nullptr;
+			}
+			ue::Call conv(textLib, L"Conv_StringToText");
+			ue::Call set(a_w, L"SetText");
+			void* in = conv ? conv.At("InString") : nullptr;
+			void* ret = conv ? conv.At("ReturnValue") : nullptr;
+			void* out = set ? set.At("InText") : nullptr;
+			if (!in || !ret || !out) return;
+			std::string text = strings::Get("HPM_LevelText", "Level {}");
+			if (const auto pos = text.find("{}"); pos != std::string::npos) text.replace(pos, 2, std::to_string(level));
+			new (in) UE::FString(ue::Widen(text).c_str());
+			conv.Run();
+			std::memcpy(out, ret, 24);
+			set.Run();
+			a_t.shownLevel = level;
+		}
+
+		// an element the game has no widget for, made from one of its own classes and put on the layout's root Overlay
+		UE::UObject* CreateElement(UE::UObject* a_layout, const elements::Element& a_el, Tracked& a_t)
+		{
+			auto* cls = ClassByName(a_el.createClass);
+			auto* root = ObjProp(ObjProp(a_layout, "WidgetTree"), "RootWidget");
+			if (!cls || !root) return nullptr;
+			auto* lib = UE::StaticFindObject<UE::UClass>(nullptr, nullptr, L"/Script/UMG.WidgetBlueprintLibrary");
+			ue::Call create(lib ? lib->GetDefaultObject(false) : nullptr, L"Create");
+			if (!create) return nullptr;
+			create.Set("WorldContextObject", a_layout);
+			create.Set("WidgetType", cls);
+			create.Run();
+			auto** made = static_cast<UE::UObject**>(create.At("ReturnValue"));
+			auto* w = made ? *made : nullptr;
+			if (!w) return nullptr;
+			ue::Call add(root, L"AddChild");
+			if (!add) { logger::warn("hud: {}: the layout's root {} takes no child - not created", a_el.key, ue::NameOf(root->GetClass())); return nullptr; }
+			add.Set("Content", w);
+			add.Run();
+			auto** slotp = static_cast<UE::UObject**>(add.At("ReturnValue"));
+			if (auto* slot = slotp ? *slotp : nullptr) {
+				for (const auto& [fn, arg] : std::initializer_list<std::pair<const wchar_t*, const char*>>{ { L"SetHorizontalAlignment", "InHorizontalAlignment" }, { L"SetVerticalAlignment", "InVerticalAlignment" } }) {
+					ue::Call set(slot, fn);   // top-left: the offset moves it from there
+					if (void* p = set.At(arg)) { *static_cast<std::uint8_t*>(p) = 0; set.Run(); }
+				}
+			}
+			SetVisibility(w, kSelfHitTestInvisible);
+			a_t.created = true;
+			SetLevelText(w, a_t);
+			logger::info("hud: {} created from {} on the layout's {}", a_el.key, a_el.createClass, ue::NameOf(root->GetClass()));
+			return w;
+		}
+
 		void Find(UE::UObject* a_layout)
 		{
 			Walk w;
@@ -279,6 +363,14 @@ namespace hud
 				auto& t = g_el[i];
 				if (widget == t.widget.Get() && widget) {
 					++found;
+					continue;
+				}
+				if (!widget && all[i].createClass) {
+					if (t.created && t.widget.Get()) { ++found; continue; }   // ours, still alive
+					Tracked fresh{};
+					widget = CreateElement(a_layout, all[i], fresh);
+					if (widget) { t = fresh; t.widget.Set(widget); t.name = std::format("{} ({}, made by this mod)", all[i].names[0], all[i].createClass); ++found; }
+					else { missing += std::string(missing.empty() ? "" : ", ") + all[i].key; }
 					continue;
 				}
 				if (!widget) {
@@ -732,6 +824,10 @@ namespace hud
 					continue;
 				}
 				const auto& e = a_s.elements[i];
+				if (t.created && GetTickCount64() - t.levelCheckedAt >= 1000) {   // this mod's own level text follows the player's level
+					t.levelCheckedAt = GetTickCount64();
+					SetLevelText(w, t);
+				}
 				Transform   now;
 				if (!ReadTransform(w, now)) {
 					continue;

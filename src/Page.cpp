@@ -184,6 +184,7 @@ namespace page
 			if (k == "EnemyHealth") return TR("HPM_El_EnemyHealth", "Enemy health");
 			if (k == "SneakEye") return TR("HPM_El_SneakEye", "Sneak eye");
 			if (k == "LevelUp") return TR("HPM_El_LevelUp", "Level-up gauge");
+			if (k == "Level") return TR("HPM_El_Level", "Level");
 			if (k == "Info") return TR("HPM_El_Info", "Target name and value");
 			if (k == "Subtitles") return TR("HPM_El_Subtitles", "Subtitles and notifications");
 			if (k == "Breath") return TR("HPM_El_Breath", "Breath meter");

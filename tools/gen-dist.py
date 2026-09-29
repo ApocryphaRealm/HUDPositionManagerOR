@@ -572,6 +572,32 @@ NEW = {
         "Nazwa obszaru",
         "Název oblasti",
     ],
+    "HPM_El_Level": [
+        "Level",
+        "レベル",
+        "레벨",
+        "等级",
+        "Уровень",
+        "Stufe",
+        "Niveau",
+        "Nivel",
+        "Livello",
+        "Poziom",
+        "Úroveň",
+    ],
+    "HPM_LevelText": [
+        "Level {}",
+        "レベル {}",
+        "레벨 {}",
+        "等级 {}",
+        "Уровень {}",
+        "Stufe {}",
+        "Niveau {}",
+        "Nivel {}",
+        "Livello {}",
+        "Poziom {}",
+        "Úroveň {}",
+    ],
 }
 
 
@@ -594,6 +620,10 @@ elements_src = open(os.path.join(REPO, "src", "Elements.h"), encoding="utf-8").r
 for k, en in re.findall(r'ArgText\("[^"]*",\s*"(HPM_[A-Za-z0-9_]+)",\s*"((?:[^"\\]|\\.)*)"\)', elements_src):
     used.append(k)
     english_in_code[k] = en
+hud_src = open(os.path.join(REPO, "src", "Hud.cpp"), encoding="utf-8").read()
+for k, en in re.findall(r'strings::Get\("(HPM_[A-Za-z0-9_]+)",\s*"((?:[^"\\]|\\.)*)"\)', hud_src):
+    used.append(k)
+    english_in_code[k] = en
 used = sorted(set(used))
 os.makedirs(OUT, exist_ok=True)
 for li, lang in enumerate(LANGS):
@@ -614,7 +644,7 @@ print("%d keys x %d languages -> %s" % (len(used), len(LANGS), OUT))
 # the INI with the compiled defaults (Settings.h / Elements.h)
 ELEMENTS = [
     ("Health", True), ("Magicka", True), ("Fatigue", True), ("Compass", False), ("Crosshair", False), ("WeaponIcon", False),
-    ("MagicIcon", False), ("EffectIcons", False), ("EnemyHealth", False), ("SneakEye", False), ("LevelUp", False), ("Info", False),
+    ("MagicIcon", False), ("EffectIcons", False), ("EnemyHealth", False), ("SneakEye", False), ("LevelUp", True), ("Level", False), ("Info", False),
     ("Subtitles", False), ("Breath", False), ("Location", False), ("DamageIndicators", False), ("Notifications", False), ("Tutorial", False), ("QuickWheel", False),
 ]
 ini = [

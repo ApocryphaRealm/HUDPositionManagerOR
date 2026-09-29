@@ -54,6 +54,9 @@ namespace elements
 		// the preview (2026-09-29): what to call so the widget shows outside its event, and what puts it back
 		std::vector<PreviewCall>         previewOn;
 		std::vector<PreviewCall>         previewOff;
+		// an element this mod CREATES on the HUD from one of the game's own widget classes (found by class name), because
+		// the game has no such widget: the Level text (2026-09-29)
+		const char*                      createClass = nullptr;
 	};
 
 	inline const std::vector<Element>& All()
@@ -70,7 +73,9 @@ namespace elements
 			{ "EffectIcons", "Active effects", { L"WBP_ModernHud_EffectIcons_C" }, { "EffectIcons" }, false, nullptr },
 			{ "EnemyHealth", "Enemy health", { L"WBP_ModernHud_StatusBarEnemy_C" }, { "StatusBarEnemy", "EnemyHealth" }, false, nullptr, 1.0f, false, 1.0f, { { L"SetProgress", { ArgDouble("InProgress", 0.75), ArgBool("IsPreview", true) } } }, { { L"SetProgress", { ArgDouble("InProgress", 0.0), ArgBool("IsPreview", true) } } } },
 			{ "SneakEye", "Sneak eye", { L"WBP_ModernHud_SneakEye_C" }, { "SneakEye" }, false, nullptr, 1.0f, false, 1.0f, { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", true) } }, { L"Update Sneak Level", { ArgDouble("InSneakLevel", 0.5) } } }, { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", false) } } } },
-			{ "LevelUp", "Level-up gauge", { L"WBP_ModernHud_LevelUpGauge_C" }, { "LevelUpGauge" }, false, nullptr, 1.0f, false, 1.0f, { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", true) } } }, { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", false) } } } },
+			{ "LevelUp", "Level-up gauge", { L"WBP_ModernHud_LevelUpGauge_C" }, { "LevelUpGauge" }, true, nullptr, 1.0f, false, 1.0f, { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", true) } } }, { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", false) } } } },
+			// the player's level as a text of the game's own prefab, created by this mod (createClass); "Level" is its tab
+			{ "Level", "Level", { L"HPM_LevelText_C" }, { "HPM_LevelText" }, false, nullptr, 1.0f, false, 1.0f, {}, {}, "WBP_AltarTextBlock_C" },
 			{ "Info", "Target name and value", { L"WBP_ModernHud_Info_C" }, { "WBP_ModernHud_Info", "Info" }, false, nullptr, 1.0f, false, 1.0f, { { L"ShowHide", { ArgBool("InShow", true) } }, { L"UpdateEmpty", { ArgBool("bIsEmpty", false) } }, { L"UpdateTargedItemName", { ArgText("InName", "HPM_PreviewItem", "Item name") } } }, { { L"UpdateEmpty", { ArgBool("bIsEmpty", true) } }, { L"ShowHide", { ArgBool("InShow", false) } } } },
 			{ "Subtitles", "Subtitles and notifications", { L"WBP_ModernHud_Subtitle_C" }, { "WBP_ModernHud_Subtitle", "Subtitle" }, false, nullptr, 1.0f, false, 1.0f, { { L"UpdateSubtitle", { ArgText("InText", "HPM_PreviewSubtitle", "A subtitle appears here while someone speaks.") } }, { L"ShowHide", { ArgBool("InVisibility", true) } } }, { { L"ShowHide", { ArgBool("InVisibility", false) } } } },
 			{ "Location", "Location name", { L"WBP_ModernHud_Area_C" }, { "WBP_ModernHud_Area", "Area" }, false, nullptr, 1.0f, false, 1.0f, { { L"DisplayArea", { ArgText("AreaName", "HPM_PreviewArea", "Area name") } }, { L"Update Visibility", { ArgBool("Visible", true), ArgBool("Area Discovered", true) } } }, { { L"Update Visibility", { ArgBool("Visible", false), ArgBool("Area Discovered", false) } } } },
