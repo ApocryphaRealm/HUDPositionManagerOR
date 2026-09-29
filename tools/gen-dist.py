@@ -507,6 +507,71 @@ NEW = {
         "Jak blisko musi podejść krawędź, zanim się przyciągnie, w jednostkach ekranu (ekran ma 1080 wysokości).",
         "Jak blízko musí okraj přijít, než se přichytí, v jednotkách obrazovky (obrazovka je 1080 vysoká).",
     ],
+    "HPM_Preview": [
+        "Show every element while this page is open",
+        "このページを開いている間すべての要素を表示",
+        "이 페이지가 열려 있는 동안 모든 요소 표시",
+        "打开此页面时显示所有元素",
+        "Показывать все элементы, пока открыта эта страница",
+        "Alle Elemente zeigen, solange diese Seite offen ist",
+        "Afficher tous les éléments tant que cette page est ouverte",
+        "Mostrar todos los elementos mientras esta página está abierta",
+        "Mostra ogni elemento mentre questa pagina è aperta",
+        "Pokazuj wszystkie elementy, gdy ta strona jest otwarta",
+        "Zobrazit všechny prvky, dokud je tato stránka otevřená",
+    ],
+    "HPM_PreviewHint": [
+        "On: elements that only appear during an event (status effects, the level-up bar, an enemy's health) are shown while this page is open, and every element's outline is drawn on the screen with its name, the selected one highlighted. Off: the HUD shows only what the game shows.",
+        "オン: イベント中にしか現れない要素 (状態効果、レベルアップバー、敵の体力) をこのページを開いている間は表示し、すべての要素の枠を名前付きで画面に描きます。選択中の要素は強調されます。オフ: HUDはゲームが表示するものだけを表示します。",
+        "켜면 이벤트 중에만 나타나는 요소(상태 효과, 레벨 업 막대, 적의 체력)가 이 페이지가 열려 있는 동안 표시되고, 모든 요소의 윤곽선이 이름과 함께 화면에 그려지며 선택한 요소는 강조됩니다. 끄면 HUD는 게임이 보여주는 것만 보여줍니다.",
+        "开启：只在事件期间出现的元素（状态效果、升级栏、敌人生命值）在此页面打开时会显示，并且每个元素的轮廓连同名称绘制在屏幕上，选中的元素高亮。关闭：HUD 只显示游戏本身显示的内容。",
+        "Вкл.: элементы, появляющиеся только во время события (эффекты состояния, полоса повышения уровня, здоровье врага), показываются, пока открыта эта страница, и контур каждого элемента рисуется на экране с его названием, выбранный выделен. Выкл.: HUD показывает только то, что показывает игра.",
+        "An: Elemente, die nur bei einem Ereignis erscheinen (Statuseffekte, die Stufenaufstiegsleiste, die Gesundheit eines Gegners), werden gezeigt, solange diese Seite offen ist, und jedes Element wird mit seinem Namen auf dem Bildschirm umrandet, das gewählte hervorgehoben. Aus: das HUD zeigt nur, was das Spiel zeigt.",
+        "Activé : les éléments qui n'apparaissent que pendant un événement (effets de statut, barre de montée de niveau, santé d'un ennemi) sont affichés tant que cette page est ouverte, et le contour de chaque élément est tracé à l'écran avec son nom, celui sélectionné mis en évidence. Désactivé : l'ATH ne montre que ce que le jeu montre.",
+        "Activado: los elementos que solo aparecen durante un evento (efectos de estado, la barra de subida de nivel, la salud de un enemigo) se muestran mientras esta página está abierta, y el contorno de cada elemento se dibuja en pantalla con su nombre, el seleccionado resaltado. Desactivado: el HUD muestra solo lo que muestra el juego.",
+        "Attivato: gli elementi che compaiono solo durante un evento (effetti di stato, la barra di salita di livello, la salute di un nemico) sono mostrati mentre questa pagina è aperta, e il contorno di ogni elemento è disegnato sullo schermo con il suo nome, quello selezionato evidenziato. Disattivato: l'HUD mostra solo ciò che mostra il gioco.",
+        "Włączone: elementy pojawiające się tylko podczas zdarzenia (efekty stanu, pasek awansu, zdrowie wroga) są pokazywane, gdy ta strona jest otwarta, a obrys każdego elementu jest rysowany na ekranie z jego nazwą, wybrany podświetlony. Wyłączone: HUD pokazuje tylko to, co pokazuje gra.",
+        "Zapnuto: prvky, které se objevují jen během události (stavové efekty, lišta postupu na další úroveň, zdraví nepřítele), se zobrazují, dokud je tato stránka otevřená, a obrys každého prvku se kreslí na obrazovku s jeho názvem, vybraný je zvýrazněn. Vypnuto: HUD ukazuje jen to, co ukazuje hra.",
+    ],
+    "HPM_PreviewItem": [
+        "Item name",
+        "アイテム名",
+        "아이템 이름",
+        "物品名称",
+        "Название предмета",
+        "Gegenstandsname",
+        "Nom de l'objet",
+        "Nombre del objeto",
+        "Nome dell'oggetto",
+        "Nazwa przedmiotu",
+        "Název předmětu",
+    ],
+    "HPM_PreviewSubtitle": [
+        "A subtitle appears here while someone speaks.",
+        "誰かが話している間、ここに字幕が表示されます。",
+        "누군가 말하는 동안 여기에 자막이 표시됩니다.",
+        "有人说话时字幕显示在这里。",
+        "Пока кто-то говорит, здесь появляются субтитры.",
+        "Hier erscheint ein Untertitel, während jemand spricht.",
+        "Un sous-titre apparaît ici pendant qu'une personne parle.",
+        "Aquí aparece un subtítulo mientras alguien habla.",
+        "Qui compare un sottotitolo mentre qualcuno parla.",
+        "Tutaj pojawiają się napisy, gdy ktoś mówi.",
+        "Zde se zobrazují titulky, když někdo mluví.",
+    ],
+    "HPM_PreviewArea": [
+        "Area name",
+        "エリア名",
+        "지역 이름",
+        "区域名称",
+        "Название области",
+        "Gebietsname",
+        "Nom du lieu",
+        "Nombre de la zona",
+        "Nome dell'area",
+        "Nazwa obszaru",
+        "Název oblasti",
+    ],
 }
 
 
@@ -524,6 +589,12 @@ def read_translation(path):
 code = open(os.path.join(REPO, "src", "Page.cpp"), encoding="utf-8").read()
 used = sorted(set(re.findall(r'\bTR\s*\(\s*"([A-Za-z0-9_]+)"', code)))
 english_in_code = dict(re.findall(r'\bTR\s*\(\s*"([A-Za-z0-9_]+)"\s*,\s*"((?:[^"\\]|\\.)*)"', code))
+# the preview placeholders live in Elements.h as ArgText("<param>", "<key>", "<english>")
+elements_src = open(os.path.join(REPO, "src", "Elements.h"), encoding="utf-8").read()
+for k, en in re.findall(r'ArgText\("[^"]*",\s*"(HPM_[A-Za-z0-9_]+)",\s*"((?:[^"\\]|\\.)*)"\)', elements_src):
+    used.append(k)
+    english_in_code[k] = en
+used = sorted(set(used))
 os.makedirs(OUT, exist_ok=True)
 for li, lang in enumerate(LANGS):
     sky = read_translation(os.path.join(SKYRIM, "HUDPositionManager_%s.txt" % lang))
@@ -562,6 +633,8 @@ ini = [
     "bSnapEdges=0",
     "; Snap distance: how close an edge has to come before it snaps, in screen units (the screen is 1080 tall).",
     "fSnapDistance=6",
+    "; Show every element while this page is open: 1 = event-only elements are shown and every element is outlined with its name while the page is open; 0 = the HUD shows only what the game shows.",
+    "bPreview=1",
     "; HUD widget collision: 1 = a widget you move stops where its edge meets another widget you have placed (a game-placed one is never in the way); 0 = widgets may overlap.",
     "bWidgetCollision=0",
     "",

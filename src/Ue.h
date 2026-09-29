@@ -10,6 +10,22 @@
 
 namespace ue
 {
+	inline std::wstring Widen(const std::string& a_utf8)
+	{
+		const int n = ::MultiByteToWideChar(CP_UTF8, 0, a_utf8.data(), static_cast<int>(a_utf8.size()), nullptr, 0);
+		std::wstring out(n > 0 ? static_cast<std::size_t>(n) : 0, L'\0');
+		if (n > 0) ::MultiByteToWideChar(CP_UTF8, 0, a_utf8.data(), static_cast<int>(a_utf8.size()), out.data(), n);
+		return out;
+	}
+	inline std::string Utf8FromWide(const wchar_t* a_wide)
+	{
+		if (!a_wide) return {};
+		const int n = ::WideCharToMultiByte(CP_UTF8, 0, a_wide, -1, nullptr, 0, nullptr, nullptr);
+		std::string out(n > 1 ? static_cast<std::size_t>(n - 1) : 0, '\0');
+		if (n > 1) ::WideCharToMultiByte(CP_UTF8, 0, a_wide, -1, out.data(), n - 1, nullptr, nullptr);
+		return out;
+	}
+
 	std::string Utf8(const UE::FString& a_s);
 	std::string NameOf(UE::UObject* a_o);
 

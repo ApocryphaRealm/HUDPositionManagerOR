@@ -287,6 +287,7 @@ namespace page
 				return;
 			}
 			auto v = settings::Snapshot();
+			if (v.preview) hud::PageDrawn();
 			ImGui::TextWrapped("%s", TR("HPM_Intro", "Move, resize or hide each part of the HUD. Changes show in the HUD at once and are saved automatically."));
 			if (Switch(TR("HPM_Enabled", "Apply my layout"), &v.enabled)) {
 				settings::Update([&](settings::Values& s) { s.enabled = v.enabled; });
@@ -297,6 +298,11 @@ namespace page
 				settings::Update([&](settings::Values& s) { s.linkBars = v.linkBars; });
 			}
 			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health."));
+			if (Switch(TR("HPM_Preview", "Show every element while this page is open"), &v.preview)) {
+				settings::Update([&](settings::Values& s) { s.preview = v.preview; });
+				logger::info("page: preview {}", v.preview ? "on" : "off");
+			}
+			Hint(TR("HPM_PreviewHint", "On: elements that only appear during an event (status effects, the level-up bar, an enemy's health) are shown while this page is open, so they can be placed. Off: the HUD shows only what the game shows."));
 			if (Switch(TR("HPM_Snap", "Snap art edges together"), &v.snapEdges)) {
 				settings::Update([&](settings::Values& s) { s.snapEdges = v.snapEdges; });
 				logger::info("page: snap art edges {}", v.snapEdges ? "on" : "off");
@@ -326,14 +332,17 @@ namespace page
 			ImGui::Spacing();
 			const bool hudFound = hud::HudFound();
 			const auto st = hud::Statuses();
+			std::size_t current = elements::Count();
 			if (ImGui::BeginTabBar("HudElements", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) {
 				for (std::size_t i = 0; i < elements::Count(); ++i) {
 					if (ImGui::BeginTabItem((std::string(ElementName(i)) + "##tab" + elements::All()[i].key).c_str())) {
+						current = i;
 						ElementTab(i, v, st, hudFound);
 						ImGui::EndTabItem();
 					}
 				}
 				ImGui::EndTabBar();
+			}
 			}
 			ImGui::Spacing();
 			ImGui::Separator();

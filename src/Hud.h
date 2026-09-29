@@ -55,6 +55,10 @@ namespace hud
 	// what the element inherits from the element(s) it moves with, in percent of the screen (its own offset excluded)
 	std::pair<double, double> MoveWithOffset(const settings::Values& a_s, std::size_t a_i);
 
+	// The page calls this every frame it is drawn: for the next 300 ms every element is shown at full opacity, its game
+	// state put back after (the preview, [General] bPreview). Any thread.
+	void PageDrawn();
+
 	bool                       HudFound();   // any thread
 	std::vector<ElementStatus> Statuses();   // any thread, in elements::All() order
 	json                       State();      // any thread: the tool's answer

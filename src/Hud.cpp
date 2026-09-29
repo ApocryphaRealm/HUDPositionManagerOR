@@ -1,6 +1,7 @@
 #include "Hud.h"
 
 #include "Settings.h"
+#include "Strings.h"
 #include "Ue.h"
 
 namespace hud
@@ -32,12 +33,18 @@ namespace hud
 			// the drawn rectangle (the union of the visible images, text blocks and progress bars), for the collision
 			bool        drawn = false;
 			double      dx = 0, dy = 0, dw = 0, dh = 0, baseDX = 0, baseDY = 0;
+			// the preview: shown by this code while the page is open, with the game's state to put back
+			bool         shownByUs = false;
+			ULONGLONG    previewCalledAt = 0;
+			std::uint8_t visBeforePreview = kSelfHitTestInvisible;
+			float        opacityBeforePreview = 1.0f;
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
 			bool        havePadBase = false, padWrote = false;
 			float       basePad[4]{}, lastPad[4]{};
 			double      slotDx = 0, slotDy = 0;   // the shift applied through the slot (the geometry moved by it, the transform did not)
 		};
 		double g_viewW = 0, g_viewH = 0;
+		std::atomic<ULONGLONG> g_pageDrawnAt{ 0 };   // the preview runs while the page keeps saying it is drawn
 
 		std::vector<Tracked> g_el(elements::Count());
 		ue::Handle           g_layout;
@@ -364,6 +371,46 @@ namespace hud
 			a_t.slotDx = a_dx;
 			a_t.slotDy = a_dy;
 			return true;
+		}
+
+		// the preview calls (elements::PreviewCall): the widget's own reflected functions with the given parameters; a text
+		// parameter is an FText the engine makes from the translated string (KismetTextLibrary::Conv_StringToText)
+		void RunPreviewCalls(UE::UObject* a_w, const std::vector<elements::PreviewCall>& a_calls, const char* a_key)
+		{
+			static UE::UObject* textLib = nullptr;
+			if (!textLib) {
+				auto* cls = UE::StaticFindObject<UE::UClass>(nullptr, nullptr, L"/Script/Engine.KismetTextLibrary");
+				textLib = cls ? cls->GetDefaultObject(false) : nullptr;
+			}
+			for (const auto& call : a_calls) {
+				ue::Call c(a_w, call.fn);
+				if (!c) {
+					logger::debug("preview: {} has no {}", a_key, ue::Utf8FromWide(call.fn));
+					continue;
+				}
+				bool ok = true;
+				for (const auto& arg : call.args) {
+					void* p = c.At(arg.name);
+					if (!p) { ok = false; break; }
+					switch (arg.kind) {
+					case elements::PreviewArg::kBool: *static_cast<bool*>(p) = arg.b; break;
+					case elements::PreviewArg::kDouble: std::memcpy(p, &arg.d, sizeof(double)); break;
+					case elements::PreviewArg::kText: {
+						ue::Call conv(textLib, L"Conv_StringToText");
+						void* in = conv ? conv.At("InString") : nullptr;
+						void* ret = conv ? conv.At("ReturnValue") : nullptr;
+						if (!in || !ret) { ok = false; break; }
+						const std::string text = strings::Get(arg.trKey, arg.english);
+						new (in) UE::FString(ue::Widen(text).c_str());   // destroyed by ProcessEvent with the other parameters
+						conv.Run();
+						std::memcpy(p, ret, 24);
+						break;
+					}
+					}
+				}
+				if (ok) c.Run();
+				else logger::debug("preview: {}'s {} has not the parameters this code expects", a_key, ue::Utf8FromWide(call.fn));
+			}
 		}
 
 		void SetVisibility(UE::UObject* a_w, std::uint8_t a_v)
@@ -707,6 +754,30 @@ namespace hud
 					logger::info("hud: {} shown again", all[i].key);
 				}
 
+				// the preview: while the page is open every element is shown, so the ones that only appear during an event
+				// (status effects, the level-up bar, the enemy's health) can be placed; the game's state comes back after
+				const bool preview = a_s.preview && a_s.enabled && !hide && (GetTickCount64() - g_pageDrawnAt.load(std::memory_order_relaxed)) < 300;
+				if (preview) {
+					if (!t.shownByUs) {
+						t.shownByUs = true;
+						t.visBeforePreview = Visibility(w);
+						t.opacityBeforePreview = Opacity(w);
+					}
+					if (const auto v = Visibility(w); v == kHidden || v == kCollapsed) SetVisibility(w, kSelfHitTestInvisible);
+					if (Opacity(w) < 0.999f) SetOpacity(w, 1.0f);
+					bool stopped = false;
+					HoldSubtreeVisible(w, 0, stopped);
+					if (!all[i].previewOn.empty() && GetTickCount64() - t.previewCalledAt >= 1000) {   // the widget's own show calls, once a second
+						t.previewCalledAt = GetTickCount64();
+						RunPreviewCalls(w, all[i].previewOn, all[i].key);
+					}
+				} else if (t.shownByUs) {
+					t.shownByUs = false;
+					t.previewCalledAt = 0;
+					if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);   // the game's own state again
+					if (!t.hiddenByUs) SetVisibility(w, t.visBeforePreview);
+					if (!t.forced) SetOpacity(w, t.opacityBeforePreview);
+				}
 				// always visible: in gameplay only, for the elements the game fades or hides on its own
 				const bool always = !hide && a_gameplay && all[i].fades && (a_s.alwaysVisible || e.alwaysVisible);
 				if (always) {
@@ -845,6 +916,11 @@ namespace hud
 		a_minY = std::min(a_minY, a_ownY);
 		a_maxY = std::max(a_maxY, a_ownY);
 		return true;
+	}
+
+	void PageDrawn()
+	{
+		g_pageDrawnAt.store(GetTickCount64(), std::memory_order_relaxed);
 	}
 
 	bool HudFound()

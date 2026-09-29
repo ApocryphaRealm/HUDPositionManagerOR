@@ -48,6 +48,7 @@ namespace settings
 				{ "General.bWidgetCollision", a_v.noOverlap ? "1" : "0" },
 				{ "General.bSnapEdges", a_v.snapEdges ? "1" : "0" },
 				{ "General.fSnapDistance", std::format("{:.0f}", a_v.snapDistance) },
+				{ "General.bPreview", a_v.preview ? "1" : "0" },
 			};
 			const auto& all = elements::All();
 			for (std::size_t i = 0; i < all.size() && i < a_v.elements.size(); ++i) {
@@ -166,6 +167,7 @@ namespace settings
 			if (const auto* s = Get(a_e, "General.bWidgetCollision")) a_v.noOverlap = Flag(*s);
 			if (const auto* s = Get(a_e, "General.bSnapEdges")) a_v.snapEdges = Flag(*s);
 			if (const auto* s = Get(a_e, "General.fSnapDistance")) a_v.snapDistance = static_cast<float>(std::atof(s->c_str()));
+			if (const auto* s = Get(a_e, "General.bPreview")) a_v.preview = Flag(*s);
 			const auto& all = elements::All();
 			a_v.elements.resize(all.size());
 			int moved = 0;
