@@ -26,14 +26,18 @@ namespace elements
 		// moved through its panel slot's padding instead of the render transform: the quick wheel's open animation
 		// writes the render transform every frame, so a translation there shows only after the animation (2026-09-29)
 		bool                             moveViaSlot = false;
+		// the drawn share of the HEIGHT, centred: the three bars' image is 32 units tall with the bar art in the middle
+		// 16 (measured off the owner's capture, 2026-09-29: "still too large of a collision box" with the art touching
+		// nothing) - the transparent margin inside a PNG is invisible to every geometry call
+		float                            visibleH = 1.0f;
 	};
 
 	inline const std::vector<Element>& All()
 	{
 		static const std::vector<Element> kAll{
-			{ "Health", "Health", { L"WBP_ModernHud_Health_C" }, { "Health", "HealthBar" }, true, nullptr },
-			{ "Magicka", "Magicka", { L"WBP_ModernHud_Magicka_C" }, { "Magicka", "MagickaBar" }, true, "Health" },
-			{ "Fatigue", "Fatigue", { L"WBP_ModernHud_Fatigue_C" }, { "Fatigue", "FatigueBar" }, true, "Health" },
+			{ "Health", "Health", { L"WBP_ModernHud_Health_C" }, { "Health", "HealthBar" }, true, nullptr, 1.0f, false, 0.5f },
+			{ "Magicka", "Magicka", { L"WBP_ModernHud_Magicka_C" }, { "Magicka", "MagickaBar" }, true, "Health", 1.0f, false, 0.5f },
+			{ "Fatigue", "Fatigue", { L"WBP_ModernHud_Fatigue_C" }, { "Fatigue", "FatigueBar" }, true, "Health", 1.0f, false, 0.5f },
 			{ "Compass", "Compass", { L"WBP_ModernHud_Compass_C" }, { "Compass" }, false, nullptr, 0.37f },
 			{ "Crosshair", "Crosshair", { L"WBP_ModernHud_Reticle_C" }, { "WBP_ModernHud_Reticle", "Reticle" }, false, nullptr },
 			{ "WeaponIcon", "Weapon icon", { L"WBP_ModernHud_WeaponIcon_C" }, { "WeaponIcon" }, false, nullptr },

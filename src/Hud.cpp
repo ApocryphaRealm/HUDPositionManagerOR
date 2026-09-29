@@ -465,7 +465,7 @@ namespace hud
 			}
 		}
 
-		bool Measure(UE::UObject* a_w, Tracked& a_t)
+		bool Measure(UE::UObject* a_w, Tracked& a_t, const elements::Element& a_el)
 		{
 			ue::Call geom(a_w, L"GetCachedGeometry");
 			if (!geom || !SlateLib() || !LayoutLib()) {
@@ -529,6 +529,9 @@ namespace hud
 				a_t.dw = std::min(d.r, a_t.vx + a_t.vw) - a_t.dx;
 				a_t.dh = std::min(d.b, a_t.vy + a_t.vh) - a_t.dy;
 				a_t.drawn = a_t.dw > 0.0 && a_t.dh > 0.0;
+				// the transparent margins inside the art (elements::Element::visibleW / visibleH), centred
+				const double ix = (1.0 - a_el.visibleW) * 0.5 * a_t.dw, iy = (1.0 - a_el.visibleH) * 0.5 * a_t.dh;
+				a_t.dx += ix; a_t.dw -= 2.0 * ix; a_t.dy += iy; a_t.dh -= 2.0 * iy;
 				a_t.baseDX = a_t.dx - a_t.lastX - a_t.slotDx;
 				a_t.baseDY = a_t.dy - a_t.lastY - a_t.slotDy;
 			}
@@ -598,7 +601,7 @@ namespace hud
 				const ULONGLONG nowMs = GetTickCount64();
 				if (nowMs - t.measuredAt >= 500) {
 					t.measuredAt = nowMs;
-					Measure(w, t);
+					Measure(w, t, all[i]);
 				}
 				if (t.measured && a_s.enabled) {
 					// against the anchor fixed at measurement, never against a value this frame changes
