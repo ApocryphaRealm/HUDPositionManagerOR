@@ -29,6 +29,9 @@ namespace hud
 			double      vx = 0, vy = 0, vw = 0, vh = 0;
 			double      baseVX = 0, baseVY = 0;   // vx / vy minus the offset that was applied when measured: the bound's anchor
 			ULONGLONG   measuredAt = 0;
+			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
+			bool        havePadBase = false, padWrote = false;
+			float       basePad[4]{}, lastPad[4]{};
 		};
 		double g_viewW = 0, g_viewH = 0;
 
@@ -289,6 +292,42 @@ namespace hud
 			}
 		}
 
+		// The element's offset through its Overlay slot's padding (moveViaSlot). Centre alignment: a Left padding of 2*dx
+		// moves the content right by dx (the box grows on one side, the centre shifts by half), Right by -dx, Top / Bottom
+		// the same vertically. The game's own padding is the base, followed the way the transform is: a value this mod
+		// did not write is the game's, and the offset rides on it. False when the slot is not an Overlay slot (the
+		// caller then falls back to the render transform).
+		bool ApplySlotShift(UE::UObject* a_w, Tracked& a_t, double a_dx, double a_dy)
+		{
+			auto* slot = ObjProp(a_w, "Slot");
+			if (!slot || ue::NameOf(slot->GetClass()) != "OverlaySlot") return false;
+			const auto off = Off(slot->GetClass(), "Padding");
+			if (off < 0) return false;
+			const float* now = ue::At<float>(slot, off);   // FMargin: Left, Top, Right, Bottom
+			const float eps = 0.01f;
+			bool same = a_t.padWrote;
+			for (int k = 0; k < 4 && same; ++k) same = std::abs(now[k] - a_t.lastPad[k]) <= eps;
+			if (!a_t.havePadBase || !same) {
+				std::memcpy(a_t.basePad, now, sizeof(a_t.basePad));   // the game's own padding (or its change)
+				a_t.havePadBase = true;
+			}
+			float want[4] = { a_t.basePad[0], a_t.basePad[1], a_t.basePad[2], a_t.basePad[3] };
+			if (a_dx >= 0.0) want[0] += static_cast<float>(2.0 * a_dx); else want[2] += static_cast<float>(-2.0 * a_dx);
+			if (a_dy >= 0.0) want[1] += static_cast<float>(2.0 * a_dy); else want[3] += static_cast<float>(-2.0 * a_dy);
+			bool differs = false;
+			for (int k = 0; k < 4 && !differs; ++k) differs = std::abs(now[k] - want[k]) > eps;
+			if (differs) {
+				ue::Call c(slot, L"SetPadding");
+				if (void* p = c.At("InPadding")) {
+					std::memcpy(p, want, sizeof(want));
+					c.Run();
+				}
+			}
+			std::memcpy(a_t.lastPad, want, sizeof(want));
+			a_t.padWrote = true;
+			return true;
+		}
+
 		void SetVisibility(UE::UObject* a_w, std::uint8_t a_v)
 		{
 			ue::Call c(a_w, L"SetVisibility");
@@ -480,6 +519,10 @@ namespace hud
 						if (lMin <= lMax) ox = std::clamp(ox, lMin - t.baseVX, lMax - t.baseVX);
 						if (tMin <= tMax) oy = std::clamp(oy, tMin - t.baseVY, tMax - t.baseVY);
 					}
+				}
+				if (all[i].moveViaSlot && ApplySlotShift(w, t, ox, oy)) {
+					ox = 0.0;   // moved through the slot; the render transform carries no translation of ours
+					oy = 0.0;
 				}
 				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scale, wantSY = t.baseSY * scale;
 				const bool   atBase = ox == 0.0 && oy == 0.0 && scale == 1.0;
