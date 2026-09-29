@@ -278,11 +278,11 @@ namespace page
 				settings::Update([&](settings::Values& s) { s.linkBars = v.linkBars; });
 			}
 			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health."));
-			if (Switch(TR("HPM_NoOverlap", "Elements stop at each other's edges"), &v.noOverlap)) {
+			if (Switch(TR("HPM_NoOverlap", "HUD widget collision"), &v.noOverlap)) {
 				settings::Update([&](settings::Values& s) { s.noOverlap = v.noOverlap; });
 				logger::info("page: elements stop at each other's edges {}", v.noOverlap ? "on" : "off");
 			}
-			Hint(TR("HPM_NoOverlapHint", "On: an element you move stops where its edge meets another element's, so the bars line up without decimal-point work. Off: elements may overlap."));
+			Hint(TR("HPM_NoOverlapHint", "On: a widget you move stops where its edge meets another widget's, so the bars line up without decimal-point work. Off: widgets may overlap."));
 
 			ImGui::SeparatorText(TR("HPM_GroupVisibility", "HUD visibility"));
 			if (Switch(TR("HPM_AlwaysAll", "Always visible"), &v.alwaysVisible)) {

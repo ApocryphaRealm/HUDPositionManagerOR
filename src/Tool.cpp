@@ -24,7 +24,7 @@ namespace tool
 				els[elements::All()[i].key] = { { "x", e.x }, { "y", e.y }, { "scale", e.scale }, { "hide", e.hide }, { "alwaysVisible", e.alwaysVisible },
 					{ "moveWith", e.moveWith } };
 			}
-			return { { "enabled", v.enabled }, { "linkBars", v.linkBars }, { "alwaysVisible", v.alwaysVisible }, { "noOverlap", v.noOverlap }, { "elements", els } };
+			return { { "enabled", v.enabled }, { "linkBars", v.linkBars }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "elements", els } };
 		}
 
 		std::string Set(const json& a_args)
@@ -36,12 +36,12 @@ namespace tool
 			}
 			const json& val = a_args["value"];
 			if (el.empty()) {
-				if ((key == "enabled" || key == "linkBars" || key == "alwaysVisible" || key == "noOverlap") && val.is_boolean()) {
+				if ((key == "enabled" || key == "linkBars" || key == "alwaysVisible" || key == "widgetCollision") && val.is_boolean()) {
 					const bool b = val.get<bool>();
-					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "linkBars" ? s.linkBars : key == "noOverlap" ? s.noOverlap : s.alwaysVisible) = b; });
+					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "linkBars" ? s.linkBars : key == "widgetCollision" ? s.noOverlap : s.alwaysVisible) = b; });
 					return {};
 				}
-				return "without an element: enabled, linkBars, alwaysVisible, noOverlap (bool)";
+				return "without an element: enabled, linkBars, alwaysVisible, widgetCollision (bool)";
 			}
 			const int i = elements::IndexOf(el);
 			if (i < 0) {
