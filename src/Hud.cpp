@@ -405,7 +405,8 @@ namespace hud
 				}
 				if (t.measured && a_s.enabled) {
 					// against the anchor fixed at measurement, never against a value this frame changes
-					ox = std::clamp(ox, -t.baseVX, std::max(-t.baseVX, g_viewW - t.baseVX - t.vw));
+					const double insetX = (1.0 - all[i].visibleW) * 0.5 * t.vw;   // the undrawn margin may leave the screen
+					ox = std::clamp(ox, -(t.baseVX + insetX), std::max(-(t.baseVX + insetX), g_viewW - t.baseVX - t.vw + insetX));
 					oy = std::clamp(oy, -t.baseVY, std::max(-t.baseVY, g_viewH - t.baseVY - t.vh));
 				}
 				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scale, wantSY = t.baseSY * scale;
@@ -492,6 +493,7 @@ namespace hud
 				st.viewW = g_viewW;
 				st.viewH = g_viewH;
 				st.baseVX = t.baseVX;
+				st.insetX = (1.0 - all[i].visibleW) * 0.5 * t.vw;
 				st.baseVY = t.baseVY;
 				std::scoped_lock l(g_lock);
 				g_status[i] = st;
@@ -535,8 +537,8 @@ namespace hud
 		// baseVX is the rectangle's left with NO offset at all; what it moves with is added, the slider's own part is not
 		const double leftAtZero = a_st.baseVX + a_withX;   // the rectangle's left with the slider at 0
 		const double topAtZero = a_st.baseVY + a_withY;
-		a_minX = -leftAtZero;
-		a_maxX = std::max(a_minX, a_st.viewW - leftAtZero - a_st.vw);
+		a_minX = -(leftAtZero + a_st.insetX);
+		a_maxX = std::max(a_minX, a_st.viewW - leftAtZero - a_st.vw + a_st.insetX);
 		a_minY = -topAtZero;
 		a_maxY = std::max(a_minY, a_st.viewH - topAtZero - a_st.vh);
 		return true;

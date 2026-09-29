@@ -18,6 +18,11 @@ namespace elements
 		std::vector<const char*>         names;      // instance names, tried when no class matched
 		bool                             fades;      // the game fades it on its own (the bars: a FadeOut animation on their StatusBar, probed 2026-09-29): "Always visible" applies
 		const char*                      barLink;    // moves with this element while "Move the three bars together" is on
+		// the part of the widget's width that is actually drawn, centred (1 = all of it). The compass's box is 1272
+		// units wide but its strip is soft-masked to the middle ~37% (measured off a capture, 2026-09-29: the owner
+		// "tried moving the compass and it wouldn't go all the way left or all the way right"); the screen bound is
+		// taken on the drawn part, so the strip itself reaches the edge.
+		float                            visibleW = 1.0f;
 	};
 
 	inline const std::vector<Element>& All()
@@ -26,7 +31,7 @@ namespace elements
 			{ "Health", "Health", { L"WBP_ModernHud_Health_C" }, { "Health", "HealthBar" }, true, nullptr },
 			{ "Magicka", "Magicka", { L"WBP_ModernHud_Magicka_C" }, { "Magicka", "MagickaBar" }, true, "Health" },
 			{ "Fatigue", "Fatigue", { L"WBP_ModernHud_Fatigue_C" }, { "Fatigue", "FatigueBar" }, true, "Health" },
-			{ "Compass", "Compass", { L"WBP_ModernHud_Compass_C" }, { "Compass" }, false, nullptr },
+			{ "Compass", "Compass", { L"WBP_ModernHud_Compass_C" }, { "Compass" }, false, nullptr, 0.37f },
 			{ "Crosshair", "Crosshair", { L"WBP_ModernHud_Reticle_C" }, { "WBP_ModernHud_Reticle", "Reticle" }, false, nullptr },
 			{ "WeaponIcon", "Weapon icon", { L"WBP_ModernHud_WeaponIcon_C" }, { "WeaponIcon" }, false, nullptr },
 			{ "MagicIcon", "Spell icon", { L"WBP_ModernHud_MagicIcon_C" }, { "MagicIcon" }, false, nullptr },
