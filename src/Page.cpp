@@ -301,11 +301,11 @@ namespace page
 				settings::Update([&](settings::Values& s) { s.linkBars = v.linkBars; });
 			}
 			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health."));
-			if (Switch(TR("HPM_Preview", "Show every element while this page is open"), &v.preview)) {
+			if (Switch(TR("HPM_Preview", "Show every element"), &v.preview)) {
 				settings::Update([&](settings::Values& s) { s.preview = v.preview; });
 				logger::info("page: preview {}", v.preview ? "on" : "off");
 			}
-			Hint(TR("HPM_PreviewHint", "On: elements that only appear during an event (status effects, the level-up bar, an enemy's health) are shown while this page is open, so they can be placed. Off: the HUD shows only what the game shows."));
+			Hint(TR("HPM_PreviewHint", "On: elements that only appear during an event (an enemy's health, the sneak eye, the level-up icon, subtitles) are made to show, in the menu and out of it, until you turn this off - so you can place them and look at the result. Turn it off when your layout is done. Off: the HUD shows only what the game shows."));
 			if (Switch(TR("HPM_Snap", "Snap art edges together"), &v.snapEdges)) {
 				settings::Update([&](settings::Values& s) { s.snapEdges = v.snapEdges; });
 				logger::info("page: snap art edges {}", v.snapEdges ? "on" : "off");

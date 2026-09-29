@@ -808,7 +808,9 @@ namespace hud
 
 				// the preview: while the page is open every element is shown, so the ones that only appear during an event
 				// (status effects, the level-up bar, the enemy's health) can be placed; the game's state comes back after
-				const bool preview = a_s.preview && a_s.enabled && !hide && (GetTickCount64() - g_pageDrawnAt.load(std::memory_order_relaxed)) < 300;
+				// the preview is a MODE, on until the switch goes off - it stays when the menu closes, so an element the menu
+				// covers (the sneak eye in the middle of the screen) can be looked at (the owner, 2026-09-29)
+				const bool preview = a_s.preview && a_s.enabled && !hide;
 				if (preview) {
 					if (!t.shownByUs) {
 						t.shownByUs = true;
