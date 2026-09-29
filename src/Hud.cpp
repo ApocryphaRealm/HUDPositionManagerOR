@@ -3,6 +3,7 @@
 #include "Settings.h"
 #include "Strings.h"
 
+#include <array>
 #include <unordered_map>
 #include "Ue.h"
 
@@ -56,6 +57,13 @@ namespace hud
 			std::vector<std::pair<UE::UObject*, UE::UObject*>> stoppedFades;      // (user widget, FadeOut animation) the hold stopped   // the sound-event slots cleared for the preview, with what they held
 			std::uint8_t visBeforePreview = kSelfHitTestInvisible;
 			float        opacityBeforePreview = 1.0f;
+			// "Fill from" (2026-09-29): the bar's progress image, the material instance the game gave it, and what is on it now
+			UE::UObject* fillImage = nullptr;
+			bool         fillImageLooked = false;
+			UE::UObject* fillOriginal = nullptr;
+			UE::UObject* fillMid = nullptr;
+			int          fillApplied = 0;
+			ULONGLONG    fillCheckedAt = 0;
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
 			bool        havePadBase = false, padWrote = false;
 			float       basePad[4]{}, lastPad[4]{};
@@ -78,14 +86,14 @@ namespace hud
 			double l = 0, t = 0, r = 0, b = 0;
 		};
 
-		// does element a_j move with a_i (directly or through the chain, the linked bars included)?
+		// does element a_j move with a_i (directly or through the chain), or do both move as one in the group?
 		bool MovesWith(const settings::Values& a_s, std::size_t a_j, std::size_t a_i)
 		{
 			const auto& all = elements::All();
+			if (a_s.group.Has(all[a_j].key) && a_s.group.Has(all[a_i].key)) return true;
 			std::size_t cur = a_j;
 			for (int hop = 0; hop < 8; ++hop) {
 				std::string with = a_s.elements[cur].moveWith;
-				if (with.empty() && a_s.linkBars && all[cur].barLink) with = all[cur].barLink;
 				if (with.empty()) return false;
 				const int k = elements::IndexOf(with);
 				if (k < 0) return false;
@@ -490,7 +498,18 @@ namespace hud
 				textLib = cls ? cls->GetDefaultObject(false) : nullptr;
 			}
 			for (const auto& call : a_calls) {
-				ue::Call c(a_w, call.fn);
+				UE::UObject* target = a_w;
+				if (call.outerClass) {   // the nearest outer user widget of that class (the element's owner)
+					target = nullptr;
+					for (UE::UObject* o = a_w ? a_w->GetOuter() : nullptr; o && !target; o = o->GetOuter()) {
+						if (Wide(ue::NameOf(o->GetClass())) == call.outerClass) target = o;
+					}
+					if (!target) {
+						logger::debug("preview: {} has no outer {}", a_key, ue::Utf8FromWide(call.outerClass));
+						continue;
+					}
+				}
+				ue::Call c(target, call.fn);
 				if (!c) {
 					logger::debug("preview: {} has no {}", a_key, ue::Utf8FromWide(call.fn));
 					continue;
@@ -502,6 +521,28 @@ namespace hud
 					switch (arg.kind) {
 					case elements::PreviewArg::kBool: *static_cast<bool*>(p) = arg.b; break;
 					case elements::PreviewArg::kDouble: std::memcpy(p, &arg.d, sizeof(double)); break;
+					case elements::PreviewArg::kObjects:
+					case elements::PreviewArg::kDoubles: {
+						// a TArray parameter {data, num, max}: the buffer comes from the engine's allocator, because ProcessEvent
+						// destroys its copy of the parameters after the call and frees the buffer with FMemory::Free
+						struct Arr { void* data; std::int32_t num, max; } arr{ nullptr, 0, 0 };
+						if (arg.kind == elements::PreviewArg::kObjects) {
+							std::vector<UE::UObject*> objs;
+							for (const auto* path : arg.objects) {
+								if (auto* o = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, path)) objs.push_back(o);
+								else logger::debug("preview: {} - {} is not loaded", a_key, ue::Utf8FromWide(path));
+							}
+							if (!objs.empty()) {
+								arr.data = UE::FMemory::Malloc(objs.size() * sizeof(UE::UObject*), 8);
+								if (arr.data) { std::memcpy(arr.data, objs.data(), objs.size() * sizeof(UE::UObject*)); arr.num = arr.max = static_cast<std::int32_t>(objs.size()); }
+							}
+						} else if (!arg.doubles.empty()) {
+							arr.data = UE::FMemory::Malloc(arg.doubles.size() * sizeof(double), 8);
+							if (arr.data) { std::memcpy(arr.data, arg.doubles.data(), arg.doubles.size() * sizeof(double)); arr.num = arr.max = static_cast<std::int32_t>(arg.doubles.size()); }
+						}
+						std::memcpy(p, &arr, sizeof(arr));
+						break;
+					}
 					case elements::PreviewArg::kText: {
 						ue::Call conv(textLib, L"Conv_StringToText");
 						void* in = conv ? conv.At("InString") : nullptr;
@@ -856,16 +897,18 @@ namespace hud
 			return a_t.measured;
 		}
 
-		// the offset an element gets: its own, plus the offset of what it moves with (chains followed, loops cut)
+		// the offset an element gets: its own, plus the group's when it is in the group, plus the offset of what it moves
+		// with (chains followed, loops cut)
 		std::pair<double, double> Offset(const settings::Values& a_s, std::size_t a_i, int a_depth = 0)
 		{
 			const auto& all = elements::All();
 			const auto& e = a_s.elements[a_i];
 			double      x = e.x, y = e.y;
-			std::string with = e.moveWith;
-			if (with.empty() && a_s.linkBars && all[a_i].barLink) {
-				with = all[a_i].barLink;
+			if (a_depth == 0 && a_s.group.Has(all[a_i].key)) {
+				x += a_s.group.x;
+				y += a_s.group.y;
 			}
+			std::string with = e.moveWith;
 			if (!with.empty() && a_depth < 8) {
 				if (const int j = elements::IndexOf(with); j >= 0 && static_cast<std::size_t>(j) != a_i) {
 					const auto [wx, wy] = Offset(a_s, static_cast<std::size_t>(j), a_depth + 1);
@@ -874,6 +917,224 @@ namespace hud
 				}
 			}
 			return { x, y };
+		}
+
+		// ---- "Fill from" (2026-09-29) --------------------------------------------------------------------------------
+		// The bars share one material (M_UI_BaseProgressBar); which way a bar fills is a STATIC switch permutation of the
+		// game's material instance the bar's StatusBar was given (IsSymmetrical on MIC_UI_ProgressBar_HealthHUD,
+		// IsLeftToRight=1 on _Fatigue, IsLeftToRight=0 on _MagickaHUD - read live off their StaticParametersRuntime),
+		// and a static switch cannot change on a dynamic instance. So the bar's progress image gets a NEW dynamic instance
+		// whose parent is the game's instance with the wanted permutation, and every scalar, vector and texture
+		// parameter the bar had (its colours, panner speeds, the live progress) is carried over from the old one. The
+		// StatusBar's own SetProgress and animations keep working: they take the image's dynamic material each time.
+		UE::UObject* PermutationMic(int a_fill)
+		{
+			static const wchar_t* kPaths[4]{ nullptr,
+				L"/Game/UI/Materials/Instances/MIC_UI_ProgressBar_Fatigue.MIC_UI_ProgressBar_Fatigue",       // 1 left
+				L"/Game/UI/Materials/Instances/MIC_UI_ProgressBar_HealthHUD.MIC_UI_ProgressBar_HealthHUD",   // 2 centre
+				L"/Game/UI/Materials/Instances/MIC_UI_ProgressBar_MagickaHUD.MIC_UI_ProgressBar_MagickaHUD" };   // 3 right
+			if (a_fill < 1 || a_fill > 3) return nullptr;
+			return UE::StaticFindObject<UE::UObject>(nullptr, nullptr, kPaths[a_fill]);
+		}
+
+		UE::UObject* DynamicMaterial(UE::UObject* a_image)
+		{
+			ue::Call c(a_image, L"GetDynamicMaterial");
+			if (!c || !c.Run()) return nullptr;
+			auto** r = static_cast<UE::UObject**>(c.At("ReturnValue"));
+			return r ? *r : nullptr;
+		}
+
+		bool IsBarMaterial(UE::UObject* a_mi)
+		{
+			auto* parent = a_mi ? ObjProp(a_mi, "Parent") : nullptr;
+			return parent && ue::NameOf(parent).starts_with("MIC_UI_ProgressBar_");
+		}
+
+		// the first Image under the element whose brush material derives from a progress-bar instance
+		UE::UObject* FindBarImage(UE::UObject* a_w, int a_depth = 0)
+		{
+			if (!a_w || a_depth > 12) return nullptr;
+			auto* cls = a_w->GetClass();
+			if (ue::NameOf(cls) == "Image") {
+				return IsBarMaterial(DynamicMaterial(a_w)) ? a_w : nullptr;
+			}
+			if (UserWidgetClass() && cls->IsChildOf(UserWidgetClass())) {
+				if (auto* f = FindBarImage(ObjProp(ObjProp(a_w, "WidgetTree"), "RootWidget"), a_depth + 1)) return f;
+			}
+			if (PanelClass() && cls->IsChildOf(PanelClass())) {
+				auto* slots = ue::At<RawArray>(a_w, Off(cls, "Slots"));
+				for (std::int32_t i = 0; slots && slots->data && i < slots->num && i < 64; ++i) {
+					if (auto* f = FindBarImage(ObjProp(slots->data[i], "Content"), a_depth + 1)) return f;
+				}
+			} else if (Off(cls, "Content") >= 0) {
+				if (auto* f = FindBarImage(ObjProp(a_w, "Content"), a_depth + 1)) return f;
+			}
+			return nullptr;
+		}
+
+		// the parameter names an instance overrides (FScalarParameterValue 36 bytes, FVectorParameterValue 48,
+		// FTextureParameterValue 40 - each starts with FMaterialParameterInfo whose first field is the FName)
+		void ParameterNames(UE::UObject* a_mi, const char* a_prop, std::size_t a_stride, std::vector<std::uint64_t>& a_out)
+		{
+			if (!a_mi) return;
+			const auto off = Off(a_mi->GetClass(), a_prop);
+			if (off < 0) return;
+			struct Arr { std::uint8_t* data; std::int32_t num, max; };
+			const auto* a = ue::At<Arr>(a_mi, off);
+			for (std::int32_t i = 0; a && a->data && i < a->num && i < 64; ++i) {
+				std::uint64_t n = 0;
+				std::memcpy(&n, a->data + static_cast<std::size_t>(i) * a_stride, sizeof(n));
+				if (std::ranges::find(a_out, n) == a_out.end()) a_out.push_back(n);
+			}
+		}
+
+		void ApplyFill(UE::UObject* a_w, Tracked& a_t, const elements::Element& a_el, int a_want)
+		{
+			const ULONGLONG now = GetTickCount64();
+			if (a_want == a_t.fillApplied && now - a_t.fillCheckedAt < 500) return;
+			a_t.fillCheckedAt = now;
+			if (!a_t.fillImageLooked) {
+				a_t.fillImageLooked = true;
+				a_t.fillImage = FindBarImage(a_w);
+				if (!a_t.fillImage) logger::info("hud: {} has no progress-bar image - \"Fill from\" does not apply", a_el.key);
+			}
+			if (!a_t.fillImage) return;
+			auto* mid = DynamicMaterial(a_t.fillImage);
+			if (!mid) return;
+			auto* parent = ObjProp(mid, "Parent");
+			if (!a_t.fillOriginal && IsBarMaterial(mid)) a_t.fillOriginal = parent;   // the game's own, seen first
+			if (!a_t.fillOriginal) return;
+			auto* target = a_want == 0 ? a_t.fillOriginal : PermutationMic(a_want);
+			if (!target) {
+				if (a_want != a_t.fillApplied) logger::warn("hud: {} - the material instance for fill {} is not loaded", a_el.key, a_want);
+				a_t.fillApplied = a_want;
+				return;
+			}
+			if (parent == target) {   // already so (the game's own, or ours from before)
+				a_t.fillApplied = a_want;
+				a_t.fillMid = mid;
+				return;
+			}
+			// every parameter the old instance resolves (its own, its parent's and the target's overrides), read BEFORE the swap
+			std::vector<std::uint64_t> scalars, vectors, textures;
+			for (auto* mi : { mid, parent, target }) {
+				ParameterNames(mi, "ScalarParameterValues", 36, scalars);
+				ParameterNames(mi, "VectorParameterValues", 48, vectors);
+				ParameterNames(mi, "TextureParameterValues", 40, textures);
+			}
+			std::vector<std::pair<std::uint64_t, float>>                  sv;
+			std::vector<std::pair<std::uint64_t, std::array<float, 4>>>   vv;
+			std::vector<std::pair<std::uint64_t, UE::UObject*>>           tv;
+			for (const auto n : scalars) {
+				ue::Call get(mid, L"K2_GetScalarParameterValue");
+				if (!get || !get.At("ParameterName")) break;
+				std::memcpy(get.At("ParameterName"), &n, 8);
+				get.Run();
+				if (const auto* v = static_cast<const float*>(get.At("ReturnValue"))) sv.emplace_back(n, *v);
+			}
+			for (const auto n : vectors) {
+				ue::Call get(mid, L"K2_GetVectorParameterValue");
+				if (!get || !get.At("ParameterName")) break;
+				std::memcpy(get.At("ParameterName"), &n, 8);
+				get.Run();
+				if (const auto* v = static_cast<const float*>(get.At("ReturnValue"))) vv.emplace_back(n, std::array<float, 4>{ v[0], v[1], v[2], v[3] });
+			}
+			for (const auto n : textures) {
+				ue::Call get(mid, L"K2_GetTextureParameterValue");
+				if (!get || !get.At("ParameterName")) break;
+				std::memcpy(get.At("ParameterName"), &n, 8);
+				get.Run();
+				if (auto** v = static_cast<UE::UObject**>(get.At("ReturnValue")); v && *v) tv.emplace_back(n, *v);
+			}
+			ue::Call brush(a_t.fillImage, L"SetBrushFromMaterial");
+			if (!brush || !brush.At("Material")) return;
+			brush.Set("Material", target);
+			brush.Run();
+			auto* neu = DynamicMaterial(a_t.fillImage);
+			if (!neu) return;
+			int copied = 0;
+			for (const auto& [n, v] : sv) {
+				ue::Call set(neu, L"SetScalarParameterValue");
+				if (!set || !set.At("ParameterName")) break;
+				std::memcpy(set.At("ParameterName"), &n, 8);
+				set.Set<float>("Value", v);
+				set.Run();
+				++copied;
+			}
+			for (const auto& [n, v] : vv) {
+				ue::Call set(neu, L"SetVectorParameterValue");
+				if (!set || !set.At("ParameterName") || !set.At("Value")) break;
+				std::memcpy(set.At("ParameterName"), &n, 8);
+				std::memcpy(set.At("Value"), v.data(), 16);
+				set.Run();
+				++copied;
+			}
+			for (const auto& [n, v] : tv) {
+				ue::Call set(neu, L"SetTextureParameterValue");
+				if (!set || !set.At("ParameterName")) break;
+				std::memcpy(set.At("ParameterName"), &n, 8);
+				set.Set("Value", v);
+				set.Run();
+				++copied;
+			}
+			a_t.fillApplied = a_want;
+			a_t.fillMid = neu;
+			static const char* kNames[4]{ "the game's own", "the left", "the centre", "the right" };
+			logger::info("hud: {} fills from {} - its material re-parented to {} with {} parameter(s) carried over", a_el.key, kNames[std::clamp(a_want, 0, 3)], ue::NameOf(target), copied);
+		}
+
+		// ---- "Length follows the resource" (2026-09-29) --------------------------------------------------------------
+		// The player's maximum of a resource, from the game's own numbers: the HUD's view model (VHUDMainViewModel) has
+		// MaxMagickaValue and the three bars' fractions; the current value comes off the player (Actor::GetActorFloatValue,
+		// Oblivion's indices 8 health, 9 magicka, 10 fatigue) and max = current / fraction. The indices are PROVEN before
+		// use: magicka's current / MaxMagickaValue must equal the view model's MagickaBarValue.
+		struct StatSource
+		{
+			ue::Handle vm;
+			ULONGLONG  scanAt = 0, provenAt = 0, readAt = 0;
+			int        proven = 0;   // 0 unknown, 1 yes, -1 no
+			double     max[3]{ 0.0, 0.0, 0.0 };   // health, magicka, fatigue
+		} g_stat;
+
+		double LinkedLength(const char* a_key, const settings::Element& a_e)
+		{
+			const int which = std::string_view(a_key) == "Health" ? 0 : std::string_view(a_key) == "Magicka" ? 1 : 2;
+			const ULONGLONG now = GetTickCount64();
+			auto* vm = g_stat.vm.Get();
+			if (!vm && now - g_stat.scanAt >= 5000) {
+				g_stat.scanAt = now;
+				vm = ue::FirstOf(ue::Class(L"/Script/Altar.VHUDMainViewModel"));
+				g_stat.vm.Set(vm);
+			}
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (vm && player && g_stat.proven >= 0 && now - g_stat.readAt >= 1000) {
+				g_stat.readAt = now;
+				auto* cls = vm->GetClass();
+				const float* healthBar = ue::At<float>(vm, Off(cls, "HealthBarValue"));
+				const float* magickaBar = ue::At<float>(vm, Off(cls, "MagickaBarValue"));
+				const float* fatigueBar = ue::At<float>(vm, Off(cls, "FatigueBarValue"));
+				const float* maxMagicka = ue::At<float>(vm, Off(cls, "MaxMagickaValue"));
+				if (healthBar && magickaBar && fatigueBar && maxMagicka) {
+					const double h = player->GetActorFloatValue(static_cast<RE::ActorValue::Index>(8));
+					const double m = player->GetActorFloatValue(static_cast<RE::ActorValue::Index>(9));
+					const double f = player->GetActorFloatValue(static_cast<RE::ActorValue::Index>(10));
+					if (g_stat.proven == 0 && *maxMagicka > 0.0f && *magickaBar > 0.05f && now - g_stat.provenAt >= 2000) {
+						g_stat.provenAt = now;
+						const double ratio = m / *maxMagicka;
+						g_stat.proven = std::abs(ratio - *magickaBar) < 0.03 ? 1 : -1;
+						if (g_stat.proven > 0) logger::info("hud: the actor value indices are proven (magicka {:.0f} of {:.0f} = the bar's {:.3f})", m, *maxMagicka, *magickaBar);
+						else logger::warn("hud: the actor value indices are NOT Oblivion's (magicka read {:.1f}, the HUD says {:.3f} of {:.0f}) - \"Length follows the resource\" is off", m, *magickaBar, *maxMagicka);
+					}
+					if (g_stat.proven > 0) {
+						if (*healthBar > 0.05f && h > 0.0) g_stat.max[0] = h / *healthBar;
+						if (*maxMagicka > 0.0f) g_stat.max[1] = *maxMagicka;
+						if (*fatigueBar > 0.05f && f > 0.0) g_stat.max[2] = f / *fatigueBar;
+					}
+				}
+			}
+			if (g_stat.proven <= 0 || g_stat.max[which] <= 0.0 || a_e.pointsPerLength <= 0.0f) return 1.0;
+			return std::clamp(g_stat.max[which] / static_cast<double>(a_e.pointsPerLength), 0.25, 4.0);
 		}
 
 		void Apply(const settings::Values& a_s, bool a_gameplay)
@@ -919,7 +1180,9 @@ namespace hud
 				ox = ox / 100.0 * unitW;
 				oy = oy / 100.0 * unitH;
 				const double scale = a_s.enabled ? e.scale : 1.0;
-				const double scaleX = scale * (a_s.enabled ? e.stretchX : 1.0), scaleY = scale * (a_s.enabled ? e.stretchY : 1.0);   // Length / Height on top of Size
+				const double linked = a_s.enabled && e.linkLength && all[i].stat ? LinkedLength(all[i].key, e) : 1.0;   // "Length follows the resource"
+				const double scaleX = scale * (a_s.enabled ? e.stretchX * linked : 1.0), scaleY = scale * (a_s.enabled ? e.stretchY : 1.0);   // Length / Height on top of Size
+				if (all[i].bar) ApplyFill(w, t, all[i], a_s.enabled ? e.fill : 0);
 				// the rectangle on screen, twice a second; the offset is clamped so the element never leaves the screen
 				const ULONGLONG nowMs = GetTickCount64();
 				if (nowMs - t.measuredAt >= 500) {
@@ -1017,6 +1280,7 @@ namespace hud
 						t.held = true;
 						t.visBeforeHold = Visibility(w);
 						t.opacityBeforeHold = Opacity(w);
+						if (!preview && !all[i].holdOn.empty()) RunPreviewCalls(w, all[i].holdOn, all[i].key);   // e.g. the breath bar filled
 					}
 					if (const auto v = Visibility(w); v == kHidden || v == kCollapsed) SetVisibility(w, kSelfHitTestInvisible);
 					if (Opacity(w) < 0.999f) SetOpacity(w, 1.0f);
@@ -1049,6 +1313,7 @@ namespace hud
 						t.previewCalledAt = 0;
 						LowerVeil(t);
 						if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);
+						if (!all[i].holdOn.empty()) RunPreviewCalls(w, all[i].holdOn, all[i].key);
 						UnmuteSounds(t);
 					}
 				} else if (t.held) {

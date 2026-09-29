@@ -1,7 +1,8 @@
 // hud.position (rules 31 and 64): op state (default) - the switches, and per element: its settings, found, the widget,
 // the game's base transform and the applied one, opacity, visibility, whether "Always visible" is holding it up;
 // op set {element?, key, value} - change a setting as the page would (element keys: x, y in PERCENT of the screen, scale, hide, alwaysVisible,
-// moveWith; without an element: enabled, linkBars, alwaysVisible); op reset {element?} - one element or every element.
+// moveWith, fill (0 game's own, 1 left, 2 centre, 3 right), linkLength, pointsPerLength; without an element: enabled, alwaysVisible,
+// groupMembers (comma-separated keys), groupX, groupY); op reset {element?} - one element or every element.
 // Every accessor used here is thread-safe, so the handler answers on TestBench's own thread.
 #include "Hud.h"
 #include "Settings.h"
@@ -22,9 +23,11 @@ namespace tool
 			for (std::size_t i = 0; i < elements::Count(); ++i) {
 				const auto& e = v.elements[i];
 				els[elements::All()[i].key] = { { "x", e.x }, { "y", e.y }, { "scale", e.scale }, { "length", e.stretchX }, { "height", e.stretchY }, { "hide", e.hide }, { "alwaysVisible", e.alwaysVisible },
-					{ "moveWith", e.moveWith } };
+					{ "moveWith", e.moveWith }, { "fill", e.fill }, { "linkLength", e.linkLength }, { "pointsPerLength", e.pointsPerLength } };
 			}
-			return { { "enabled", v.enabled }, { "linkBars", v.linkBars }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "snapEdges", v.snapEdges }, { "snapDistance", v.snapDistance }, { "preview", v.preview }, { "elements", els } };
+			std::string members;
+			for (const auto& m : v.group.members) members += (members.empty() ? "" : ",") + m;
+			return { { "enabled", v.enabled }, { "groupMembers", members }, { "groupX", v.group.x }, { "groupY", v.group.y }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "snapEdges", v.snapEdges }, { "snapDistance", v.snapDistance }, { "preview", v.preview }, { "elements", els } };
 		}
 
 		std::string Set(const json& a_args)
@@ -36,16 +39,31 @@ namespace tool
 			}
 			const json& val = a_args["value"];
 			if (el.empty()) {
-				if ((key == "enabled" || key == "linkBars" || key == "alwaysVisible" || key == "widgetCollision" || key == "snapEdges" || key == "preview") && val.is_boolean()) {
+				if ((key == "enabled" || key == "alwaysVisible" || key == "widgetCollision" || key == "snapEdges" || key == "preview") && val.is_boolean()) {
 					const bool b = val.get<bool>();
-					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "linkBars" ? s.linkBars : key == "widgetCollision" ? s.noOverlap : key == "snapEdges" ? s.snapEdges : key == "preview" ? s.preview : s.alwaysVisible) = b; });
+					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "widgetCollision" ? s.noOverlap : key == "snapEdges" ? s.snapEdges : key == "preview" ? s.preview : s.alwaysVisible) = b; });
+					return {};
+				}
+				if (key == "groupMembers" && val.is_string()) {
+					settings::Update([&](settings::Values& s) {
+						s.group.members.clear();
+						std::string part;
+						for (const char c : val.get<std::string>() + ",") {
+							if (c == ',') { if (!part.empty()) s.group.members.push_back(part); part.clear(); }
+							else if (c != ' ') part.push_back(c);
+						}
+					});
+					return {};
+				}
+				if ((key == "groupX" || key == "groupY") && val.is_number()) {
+					settings::Update([&](settings::Values& s) { (key == "groupX" ? s.group.x : s.group.y) = val.get<float>(); });
 					return {};
 				}
 				if (key == "snapDistance" && val.is_number()) {
 					settings::Update([&](settings::Values& s) { s.snapDistance = val.get<float>(); });
 					return {};
 				}
-				return "without an element: enabled, linkBars, alwaysVisible, widgetCollision, snapEdges (bool), snapDistance (number)";
+				return "without an element: enabled, alwaysVisible, widgetCollision, snapEdges, preview (bool), snapDistance, groupX, groupY (number), groupMembers (comma-separated keys)";
 			}
 			const int i = elements::IndexOf(el);
 			if (i < 0) {
@@ -54,17 +72,19 @@ namespace tool
 			bool ok = true;
 			settings::Update([&](settings::Values& s) {
 				auto& e = s.elements[static_cast<std::size_t>(i)];
-				if ((key == "x" || key == "y" || key == "scale" || key == "length" || key == "height") && val.is_number()) {
-					(key == "x" ? e.x : key == "y" ? e.y : key == "scale" ? e.scale : key == "length" ? e.stretchX : e.stretchY) = val.get<float>();
-				} else if ((key == "hide" || key == "alwaysVisible") && val.is_boolean()) {
-					(key == "hide" ? e.hide : e.alwaysVisible) = val.get<bool>();
+				if ((key == "x" || key == "y" || key == "scale" || key == "length" || key == "height" || key == "pointsPerLength") && val.is_number()) {
+					(key == "x" ? e.x : key == "y" ? e.y : key == "scale" ? e.scale : key == "length" ? e.stretchX : key == "height" ? e.stretchY : e.pointsPerLength) = val.get<float>();
+				} else if (key == "fill" && val.is_number()) {
+					e.fill = val.get<int>();
+				} else if ((key == "hide" || key == "alwaysVisible" || key == "linkLength") && val.is_boolean()) {
+					(key == "hide" ? e.hide : key == "linkLength" ? e.linkLength : e.alwaysVisible) = val.get<bool>();
 				} else if (key == "moveWith" && val.is_string()) {
 					e.moveWith = val.get<std::string>();
 				} else {
 					ok = false;
 				}
 			});
-			return ok ? std::string() : "element keys: x, y, scale (number), hide, alwaysVisible (bool), moveWith (element key or \"\")";
+			return ok ? std::string() : "element keys: x, y, scale, length, height, pointsPerLength, fill (number), hide, alwaysVisible, linkLength (bool), moveWith (element key or \"\")";
 		}
 
 		void Tool(void*, const char* a_args, void* a_sink, TestBenchAPI::WriteFn a_write)
@@ -123,7 +143,7 @@ namespace tool
 		g_tb = get ? static_cast<TestBenchAPI::ITestBenchInterface001*>(get(1)) : nullptr;
 		if (!g_tb) return false;
 		g_tb->RegisterTool("hud.position",
-			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, hide, alwaysVisible, moveWith; without element: enabled, linkBars, alwaysVisible; op reset {element?}; op presets - the preset files; op savePreset {name, author?, note?} - the current layout as a preset; op loadPreset {path}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
+			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, length, height, fill, linkLength, pointsPerLength, hide, alwaysVisible, moveWith; without element: enabled, alwaysVisible, groupMembers, groupX, groupY; op reset {element?}; op presets - the preset files; op savePreset {name, author?, note?} - the current layout as a preset; op loadPreset {path}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
 			&Tool, nullptr);
 		logger::info("TestBench tool registered: hud.position");
 		return true;

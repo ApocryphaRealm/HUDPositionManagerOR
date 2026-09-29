@@ -144,6 +144,12 @@ namespace ue
 	{
 		ptr = a_live;
 		index = a_live ? a_live->internalIndex : -1;
+		cls = a_live ? a_live->GetClass() : nullptr;
+		name = 0;
+		if (a_live) {
+			const UE::FName n = a_live->GetFName();
+			std::memcpy(&name, &n, sizeof(name));
+		}
 	}
 
 	UE::UObject* Handle::Get() const
@@ -153,7 +159,12 @@ namespace ue
 			return nullptr;
 		}
 		auto* item = arr->IndexToObject(index);
-		return item && reinterpret_cast<UE::UObject*>(item->object) == ptr ? ptr : nullptr;
+		if (!item || reinterpret_cast<UE::UObject*>(item->object) != ptr) return nullptr;
+		if (ptr->GetClass() != cls) return nullptr;   // the slot and address reused by another object
+		const UE::FName n = ptr->GetFName();
+		std::uint64_t now = 0;
+		std::memcpy(&now, &n, sizeof(now));
+		return now == name ? ptr : nullptr;
 	}
 
 	UE::UObject* FirstOf(UE::UClass* a_base)

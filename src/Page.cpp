@@ -73,6 +73,31 @@ namespace page
 			return changed;
 		}
 
+		// The same for a scale in HUNDREDTHS ("1.00x"): with a float slider the three scales could not be brought back to
+		// exactly 1.00 after fine adjustment (the owner, 2026-09-29).
+		bool ScaleSlider(const char* a_label, float* a_value, float a_min, float a_max)
+		{
+			int hundredths = static_cast<int>(std::lround(*a_value * 100.0f));
+			const int lo = static_cast<int>(std::lround(a_min * 100.0f)), hi = std::max(lo, static_cast<int>(std::lround(a_max * 100.0f)));
+			hundredths = std::clamp(hundredths, lo, hi);
+			ImGuiIO& io = ImGui::GetIO();
+			auto& l1 = io.KeysData[ImGuiKey_GamepadL1 - ImGuiKey_KeysData_OFFSET];
+			auto& ctrl = io.KeysData[ImGuiKey_ReservedForModCtrl - ImGuiKey_KeysData_OFFSET];
+			const bool l1Was = l1.Down, ctrlWas = ctrl.Down;
+			l1.Down = true;
+			ctrl.Down = true;
+			const bool changed = ImGui::SliderInt(a_label, &hundredths, lo, hi, "", ImGuiSliderFlags_NoInput);
+			l1.Down = l1Was;
+			ctrl.Down = ctrlWas;
+			const ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
+			char text[32];
+			std::snprintf(text, sizeof(text), "%.2fx", hundredths / 100.0);
+			const ImVec2 sz = ImGui::CalcTextSize(text);
+			ImGui::GetWindowDrawList()->AddText(ImVec2((mn.x + mx.x - sz.x) * 0.5f, (mn.y + mx.y - sz.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), text);
+			if (changed) *a_value = hundredths / 100.0f;
+			return changed;
+		}
+
 		// a slider's range, frozen while it is held (per element; the page draws on one thread)
 		struct HeldRange
 		{
@@ -80,6 +105,7 @@ namespace page
 			double minX = 0, maxX = 0, minY = 0, maxY = 0;
 		};
 		std::vector<HeldRange> g_held(elements::Count());
+		HeldRange              g_heldGroup;
 
 		// ---------------------------------------------------------------- the Presets tab
 		std::vector<settings::PresetInfo> g_presets;
@@ -246,12 +272,12 @@ namespace page
 			changed |= PercentSlider((std::string(TR("HPM_MoveY", "Move up / down")) + id + "y").c_str(), &e.y, minY, maxY);
 			held.y = ImGui::IsItemActive();
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-			changed |= ImGui::SliderFloat((std::string(TR("HPM_Size", "Size")) + id + "s").c_str(), &e.scale, settings::kScaleMin, maxScale, "%.2fx");
+			changed |= ScaleSlider((std::string(TR("HPM_Size", "Size")) + id + "s").c_str(), &e.scale, settings::kScaleMin, maxScale);
 			if (el.bar) {   // a resource bar: its length and height on their own, on top of the size
 				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-				changed |= ImGui::SliderFloat((std::string(TR("HPM_Length", "Length")) + id + "l").c_str(), &e.stretchX, settings::kScaleMin, settings::kScaleMax, "%.2fx");
+				changed |= ScaleSlider((std::string(TR("HPM_Length", "Length")) + id + "l").c_str(), &e.stretchX, settings::kScaleMin, settings::kScaleMax);
 				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-				changed |= ImGui::SliderFloat((std::string(TR("HPM_Height", "Height")) + id + "t").c_str(), &e.stretchY, settings::kScaleMin, settings::kScaleMax, "%.2fx");
+				changed |= ScaleSlider((std::string(TR("HPM_Height", "Height")) + id + "t").c_str(), &e.stretchY, settings::kScaleMin, settings::kScaleMax);
 				Hint(TR("HPM_StretchHint", "Length and Height stretch the bar on one side each, on top of Size."));
 			}
 			changed |= Switch((std::string(TR("HPM_Hide", "Hide")) + id + "h").c_str(), &e.hide);
@@ -276,8 +302,8 @@ namespace page
 				e.moveWith = keys[static_cast<std::size_t>(current)];
 				changed = true;
 			}
-			if (el.barLink && a_v.linkBars && e.moveWith.empty()) {
-				Hint(TR("HPM_LinkedHint", "Moves with Health while \"Move the three bars together\" is on."));
+			if (a_v.group.Has(el.key)) {
+				Hint(TR("HPM_InGroupHint", "Also moves with the widgets on the Combined widgets tab."));
 			}
 			if (changed) {
 				settings::Update([&](settings::Values& s) { s.elements[a_i] = e; });
@@ -285,6 +311,103 @@ namespace page
 			if (ImGui::Button((std::string(TR("HPM_ResetOne", "Reset this element")) + id + "r").c_str())) {
 				settings::ResetElement(a_i);
 				logger::info("page: {} reset", el.key);
+			}
+		}
+
+		// ---------------------------------------------------------------- the Combined widgets tab (2026-09-29)
+		// Any set of widgets moves as one on the shared sliders, on top of each one's own position; and the resource
+		// bars' "Fill from" and "Length follows the resource" (the owner: "integrate the fill from alignment settings
+		// into the combined widget tab").
+		void CombinedTab(const settings::Values& a_v, const std::vector<hud::ElementStatus>& a_all, bool a_hud)
+		{
+			if (a_v.preview) hud::PageDrawn();
+			ImGui::TextWrapped("%s", TR("HPM_CombinedIntro", "Pick the widgets that should move as one. The sliders below move every picked widget together, on top of the position each has on its own tab."));
+			ImGui::SeparatorText(TR("HPM_GroupMembers", "Widgets that move as one"));
+			auto group = a_v.group;
+			bool changed = false;
+			for (std::size_t i = 0; i < elements::Count(); ++i) {
+				const char* key = elements::All()[i].key;
+				bool on = group.Has(key);
+				if (Switch((std::string(ElementName(i)) + "##grp" + key).c_str(), &on)) {
+					if (on) group.members.emplace_back(key);
+					else std::erase(group.members, std::string(key));
+					changed = true;
+				}
+			}
+			ImGui::Spacing();
+			if (group.members.size() < 2) {
+				Hint(TR("HPM_GroupNone", "Pick two or more widgets above to move them together."));
+			} else {
+				// the sliders' range: what every member can still travel (its own slider's range, less its own value), in percent
+				double minX = -settings::kMoveX, maxX = settings::kMoveX, minY = -settings::kMoveY, maxY = settings::kMoveY;
+				if (a_hud) {
+					for (std::size_t i = 0; i < elements::Count(); ++i) {
+						if (!group.Has(elements::All()[i].key) || i >= a_all.size() || !a_all[i].found) continue;
+						const auto& st = a_all[i];
+						const auto& e = a_v.elements[i];
+						const double unitW = st.viewW > 0.0 ? st.viewW : 1920.0, unitH = st.viewH > 0.0 ? st.viewH : 1080.0;
+						const auto [withX, withY] = hud::MoveWithOffset(a_v, i);   // the group's offset is in it
+						double lo, hi, tlo, thi;
+						if (!hud::OffsetRange(a_all, i, a_v, withX / 100.0 * unitW, withY / 100.0 * unitH, e.x / 100.0 * unitW, e.y / 100.0 * unitH, lo, hi, tlo, thi)) continue;
+						// the member's own slider may go [lo, hi]; the group may move by what is left on each side of its own value
+						minX = std::max(minX, group.x + lo / unitW * 100.0 - e.x);
+						maxX = std::min(maxX, group.x + hi / unitW * 100.0 - e.x);
+						minY = std::max(minY, group.y + tlo / unitH * 100.0 - e.y);
+						maxY = std::min(maxY, group.y + thi / unitH * 100.0 - e.y);
+					}
+				}
+				minX = std::clamp(minX, -100.0, 100.0);
+				maxX = std::clamp(maxX, minX, 100.0);
+				minY = std::clamp(minY, -100.0, 100.0);
+				maxY = std::clamp(maxY, minY, 100.0);
+				auto& held = g_heldGroup;
+				if (held.x) { minX = held.minX; maxX = held.maxX; } else { held.minX = minX; held.maxX = maxX; }
+				if (held.y) { minY = held.minY; maxY = held.maxY; } else { held.minY = minY; held.maxY = maxY; }
+				group.x = std::clamp(group.x, static_cast<float>(minX), static_cast<float>(maxX));
+				group.y = std::clamp(group.y, static_cast<float>(minY), static_cast<float>(maxY));
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				changed |= PercentSlider((std::string(TR("HPM_MoveX", "Move left / right")) + "##groupx").c_str(), &group.x, minX, maxX);
+				held.x = ImGui::IsItemActive();
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				changed |= PercentSlider((std::string(TR("HPM_MoveY", "Move up / down")) + "##groupy").c_str(), &group.y, minY, maxY);
+				held.y = ImGui::IsItemActive();
+				if (ImGui::Button((std::string(TR("HPM_GroupReset", "Reset the shared position")) + "##groupreset").c_str())) {
+					group.x = 0.0f;
+					group.y = 0.0f;
+					changed = true;
+				}
+			}
+			if (changed) {
+				settings::Update([&](settings::Values& s) { s.group = group; });
+			}
+
+			ImGui::Spacing();
+			ImGui::SeparatorText(TR("HPM_BarsSection", "Resource bars"));
+			Hint(TR("HPM_FillHint", "Fill from: the side the filled part of a bar is anchored to - it drains away from that side. Centre drains toward both ends."));
+			const char* fills[4]{ TR("HPM_FillGame", "The game's own"), TR("HPM_FillLeft", "Left"), TR("HPM_FillCentre", "Centre"), TR("HPM_FillRight", "Right") };
+			for (std::size_t i = 0; i < elements::Count(); ++i) {
+				const auto& el = elements::All()[i];
+				if (!el.bar) continue;
+				auto e = a_v.elements[i];
+				bool ch = false;
+				const std::string id = std::string("##bar") + el.key;
+				ImGui::TextUnformatted(ElementName(i));
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				if (ImGui::Combo((std::string(TR("HPM_FillFrom", "Fill from")) + id + "f").c_str(), &e.fill, fills, 4)) ch = true;
+				if (el.stat) {
+					ch |= Switch((std::string(TR("HPM_LinkLength", "Length follows the resource")) + id + "l").c_str(), &e.linkLength);
+					if (e.linkLength) {
+						Hint(TR("HPM_LinkLengthHint", "The bar grows with your maximum: it is 1.00x long at the points below, longer above them."));
+						int points = static_cast<int>(std::lround(e.pointsPerLength));
+						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+						if (ImGui::SliderInt((std::string(TR("HPM_PointsPerLength", "Points per full length")) + id + "p").c_str(), &points, static_cast<int>(settings::kPointsMin), static_cast<int>(settings::kPointsMax), "%d", ImGuiSliderFlags_NoInput)) {
+							e.pointsPerLength = static_cast<float>(points);
+							ch = true;
+						}
+					}
+				}
+				if (ch) settings::Update([&](settings::Values& s) { s.elements[i] = e; });
+				ImGui::Spacing();
 			}
 		}
 
@@ -301,11 +424,17 @@ namespace page
 				PresetsTab();
 				ImGui::EndTabItem();
 			}
+			auto       v = settings::Snapshot();
+			const bool hudFound = hud::HudFound();
+			const auto st = hud::Statuses();
 			if (!ImGui::BeginTabItem((std::string(TR("HPM_TabLayout", "Layout")) + "##tablayout").c_str())) {
+				if (ImGui::BeginTabItem((std::string(TR("HPM_TabCombined", "Combined widgets")) + "##tabcombined").c_str())) {
+					CombinedTab(v, st, hudFound);
+					ImGui::EndTabItem();
+				}
 				ImGui::EndTabBar();
 				return;
 			}
-			auto v = settings::Snapshot();
 			if (v.preview) hud::PageDrawn();
 			ImGui::TextWrapped("%s", TR("HPM_Intro", "Move, resize or hide each part of the HUD. Changes show in the HUD at once and are saved automatically."));
 			if (Switch(TR("HPM_Enabled", "Apply my layout"), &v.enabled)) {
@@ -313,10 +442,6 @@ namespace page
 				logger::info("page: layout {}", v.enabled ? "on" : "off");
 			}
 			Hint(TR("HPM_EnabledHint", "Off: every element goes back to where the game puts it."));
-			if (Switch(TR("HPM_LinkBars", "Move the three bars together"), &v.linkBars)) {
-				settings::Update([&](settings::Values& s) { s.linkBars = v.linkBars; });
-			}
-			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health."));
 			if (Switch(TR("HPM_Preview", "Show every element"), &v.preview)) {
 				settings::Update([&](settings::Values& s) { s.preview = v.preview; });
 				logger::info("page: preview {}", v.preview ? "on" : "off");
@@ -349,8 +474,6 @@ namespace page
 			                     : TR("HPM_AlwaysAllOffHint", "Off: the game decides. The bars fade out when they are full."));
 
 			ImGui::Spacing();
-			const bool hudFound = hud::HudFound();
-			const auto st = hud::Statuses();
 			std::size_t current = elements::Count();
 			if (ImGui::BeginTabBar("HudElements", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) {
 				for (std::size_t i = 0; i < elements::Count(); ++i) {
@@ -370,6 +493,10 @@ namespace page
 				logger::info("page: every element reset");
 			}
 			ImGui::EndTabItem();
+			if (ImGui::BeginTabItem((std::string(TR("HPM_TabCombined", "Combined widgets")) + "##tabcombined").c_str())) {
+				CombinedTab(v, st, hudFound);
+				ImGui::EndTabItem();
+			}
 			ImGui::EndTabBar();
 		}
 	}

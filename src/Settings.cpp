@@ -43,7 +43,6 @@ namespace settings
 			const auto f = [](float a_f, int a_decimals) { return a_decimals == 2 ? std::format("{:.2f}", a_f) : std::format("{:.0f}", a_f); };
 			std::vector<std::pair<std::string, std::string>> out{
 				{ "General.bEnabled", a_v.enabled ? "1" : "0" },
-				{ "General.bLinkBars", a_v.linkBars ? "1" : "0" },
 				{ "General.bAlwaysVisible", a_v.alwaysVisible ? "1" : "0" },
 				{ "General.bWidgetCollision", a_v.noOverlap ? "1" : "0" },
 				{ "General.bSnapEdges", a_v.snapEdges ? "1" : "0" },
@@ -64,7 +63,17 @@ namespace settings
 					out.emplace_back(s + ".bAlwaysVisible", e.alwaysVisible ? "1" : "0");
 				}
 				out.emplace_back(s + ".sMoveWith", e.moveWith);
+				if (all[i].bar) out.emplace_back(s + ".iFill", std::to_string(e.fill));
+				if (all[i].stat) {
+					out.emplace_back(s + ".bLinkLength", e.linkLength ? "1" : "0");
+					out.emplace_back(s + ".fPointsPerLength", std::format("{:.0f}", e.pointsPerLength));
+				}
 			}
+			std::string members;
+			for (const auto& m : a_v.group.members) members += (members.empty() ? "" : ",") + m;
+			out.emplace_back("Group.sMembers", members);
+			out.emplace_back("Group.fX", std::format("{:.2f}", a_v.group.x));
+			out.emplace_back("Group.fY", std::format("{:.2f}", a_v.group.y));
 			out.emplace_back("Log.uLogLevel", std::to_string(a_v.logLevel));
 			return out;
 		}
@@ -85,7 +94,18 @@ namespace settings
 				if (!e.moveWith.empty() && (elements::IndexOf(e.moveWith) < 0 || e.moveWith == elements::All()[i].key)) {
 					e.moveWith.clear();   // an unknown element, or itself
 				}
+				e.fill = elements::All()[i].bar ? std::clamp(e.fill, 0, 3) : 0;
+				if (!elements::All()[i].stat) e.linkLength = false;
+				e.pointsPerLength = std::clamp(e.pointsPerLength, kPointsMin, kPointsMax);
 			}
+			// the group: known elements, each once
+			std::vector<std::string> members;
+			for (const auto& m : a_v.group.members) {
+				if (elements::IndexOf(m) >= 0 && std::ranges::find(members, m) == members.end()) members.push_back(m);
+			}
+			a_v.group.members = std::move(members);
+			a_v.group.x = std::clamp(a_v.group.x, -kMoveX, kMoveX);
+			a_v.group.y = std::clamp(a_v.group.y, -kMoveY, kMoveY);
 			a_v.snapDistance = std::clamp(a_v.snapDistance, 0.0f, 40.0f);
 			a_v.logLevel = std::clamp(a_v.logLevel, 0, 6);
 		}
@@ -162,11 +182,10 @@ namespace settings
 
 		bool Flag(const std::string& a_v) { return a_v != "0" && Lower(a_v) != "false"; }
 
-		// the layout keys (the elements, bars together, HUD always visible) of a settings or preset file into a_v;
+		// the layout keys (the elements, the group, HUD always visible) of a settings or preset file into a_v;
 		// how many elements differ from the game's own layout
 		int ReadLayout(const Entries& a_e, Values& a_v)
 		{
-			if (const auto* s = Get(a_e, "General.bLinkBars")) a_v.linkBars = Flag(*s);
 			if (const auto* s = Get(a_e, "General.bAlwaysVisible")) a_v.alwaysVisible = Flag(*s);
 			if (const auto* s = Get(a_e, "General.bWidgetCollision")) a_v.noOverlap = Flag(*s);
 			if (const auto* s = Get(a_e, "General.bSnapEdges")) a_v.snapEdges = Flag(*s);
@@ -186,8 +205,23 @@ namespace settings
 				if (const auto* s = Get(a_e, k + ".bHide")) e.hide = Flag(*s);
 				if (const auto* s = Get(a_e, k + ".bAlwaysVisible")) e.alwaysVisible = Flag(*s);
 				if (const auto* s = Get(a_e, k + ".sMoveWith")) e.moveWith = *s;
-				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.stretchX != 1.0f || e.stretchY != 1.0f || e.hide) ? 1 : 0;
+				if (const auto* s = Get(a_e, k + ".iFill")) e.fill = std::atoi(s->c_str());
+				if (const auto* s = Get(a_e, k + ".bLinkLength")) e.linkLength = Flag(*s);
+				if (const auto* s = Get(a_e, k + ".fPointsPerLength")) e.pointsPerLength = static_cast<float>(std::atof(s->c_str()));
+				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.stretchX != 1.0f || e.stretchY != 1.0f || e.hide || e.fill != 0) ? 1 : 0;
 			}
+			if (const auto* s = Get(a_e, "Group.sMembers")) {
+				a_v.group.members.clear();
+				for (std::size_t p = 0; p <= s->size();) {
+					const auto c = s->find(',', p);
+					const auto part = std::string(Trim(std::string_view(*s).substr(p, (c == std::string::npos ? s->size() : c) - p)));
+					if (!part.empty()) a_v.group.members.push_back(part);
+					if (c == std::string::npos) break;
+					p = c + 1;
+				}
+			}
+			if (const auto* s = Get(a_e, "Group.fX")) a_v.group.x = static_cast<float>(std::atof(s->c_str()));
+			if (const auto* s = Get(a_e, "Group.fY")) a_v.group.y = static_cast<float>(std::atof(s->c_str()));
 			return moved;
 		}
 	}
@@ -205,8 +239,8 @@ namespace settings
 		const int moved = ReadLayout(entries, v);
 		if (const auto* s = Get(entries, "Log.uLogLevel")) v.logLevel = std::atoi(s->c_str());
 		Clamp(v);
-		logger::info("settings loaded from {}: layout {}, bars together {}, HUD {}, {} element(s) changed, log level {}", IniPath().string(),
-			v.enabled ? "on" : "off", v.linkBars, v.alwaysVisible ? "always visible" : "as the game decides", moved, v.logLevel);
+		logger::info("settings loaded from {}: layout {}, {} widget(s) moving as one, HUD {}, {} element(s) changed, log level {}", IniPath().string(),
+			v.enabled ? "on" : "off", v.group.members.size(), v.alwaysVisible ? "always visible" : "as the game decides", moved, v.logLevel);
 	}
 
 	bool Save()
@@ -332,6 +366,7 @@ namespace settings
 		{
 			std::scoped_lock l(g_valuesLock);
 			g_values.elements.assign(elements::Count(), Element{});   // a preset is the whole layout: what it leaves out is the game's own
+			g_values.group = Group{};
 			moved = ReadLayout(e, g_values);
 			Clamp(g_values);
 		}
@@ -353,7 +388,7 @@ namespace settings
 			out << "; HUD Position Manager preset - a whole layout. Load it from the Presets tab; every element the file\r\n"
 			    << "; leaves out goes back to the game's own layout. fX / fY are a percentage of the screen.\r\n"
 			    << "[Preset]\r\nsName=" << a_name << "\r\nsAuthor=" << a_author << "\r\nsNote=" << a_note << "\r\n\r\n"
-			    << "[General]\r\nbLinkBars=" << (snapshot.linkBars ? 1 : 0) << "\r\nbAlwaysVisible=" << (snapshot.alwaysVisible ? 1 : 0) << "\r\nbWidgetCollision=" << (snapshot.noOverlap ? 1 : 0) << "\r\nbSnapEdges=" << (snapshot.snapEdges ? 1 : 0) << "\r\nfSnapDistance=" << std::format("{:.0f}", snapshot.snapDistance) << "\r\n";
+			    << "[General]\r\nbAlwaysVisible=" << (snapshot.alwaysVisible ? 1 : 0) << "\r\nbWidgetCollision=" << (snapshot.noOverlap ? 1 : 0) << "\r\nbSnapEdges=" << (snapshot.snapEdges ? 1 : 0) << "\r\nfSnapDistance=" << std::format("{:.0f}", snapshot.snapDistance) << "\r\n";
 			std::string section;
 			for (const auto& [key, value] : Rows(snapshot)) {
 				const auto        dot = key.find('.');

@@ -43,11 +43,15 @@ namespace ue
 	bool IsLive(UE::UObject* a_o);
 
 	// A pointer kept across frames with the object-array slot it was found in. Get() asks the SLOT whether it still
-	// holds that object and never reads the object itself.
+	// holds that object, and then that the object there still has the class and name seen at Set(): a freed widget's
+	// slot AND address were both reused by another object, and the dead one passed as alive (the Level text: a
+	// full-screen rectangle and sliders stuck at 0 %, 2026-09-29).
 	struct Handle
 	{
 		UE::UObject* ptr = nullptr;
 		std::int32_t index = -1;
+		UE::UClass*  cls = nullptr;
+		std::uint64_t name = 0;   // the FName's 8 bytes
 		void         Set(UE::UObject* a_live);   // a_live must be live now (just found)
 		UE::UObject* Get() const;                // nullptr once the slot holds anything else
 	};
