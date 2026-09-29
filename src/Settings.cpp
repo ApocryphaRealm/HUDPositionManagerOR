@@ -45,6 +45,7 @@ namespace settings
 				{ "General.bEnabled", a_v.enabled ? "1" : "0" },
 				{ "General.bLinkBars", a_v.linkBars ? "1" : "0" },
 				{ "General.bAlwaysVisible", a_v.alwaysVisible ? "1" : "0" },
+				{ "General.bNoOverlap", a_v.noOverlap ? "1" : "0" },
 			};
 			const auto& all = elements::All();
 			for (std::size_t i = 0; i < all.size() && i < a_v.elements.size(); ++i) {
@@ -159,6 +160,7 @@ namespace settings
 		{
 			if (const auto* s = Get(a_e, "General.bLinkBars")) a_v.linkBars = Flag(*s);
 			if (const auto* s = Get(a_e, "General.bAlwaysVisible")) a_v.alwaysVisible = Flag(*s);
+			if (const auto* s = Get(a_e, "General.bNoOverlap")) a_v.noOverlap = Flag(*s);
 			const auto& all = elements::All();
 			a_v.elements.resize(all.size());
 			int moved = 0;
@@ -338,7 +340,7 @@ namespace settings
 			out << "; HUD Position Manager preset - a whole layout. Load it from the Presets tab; every element the file\r\n"
 			    << "; leaves out goes back to the game's own layout. fX / fY are a percentage of the screen.\r\n"
 			    << "[Preset]\r\nsName=" << a_name << "\r\nsAuthor=" << a_author << "\r\nsNote=" << a_note << "\r\n\r\n"
-			    << "[General]\r\nbLinkBars=" << (snapshot.linkBars ? 1 : 0) << "\r\nbAlwaysVisible=" << (snapshot.alwaysVisible ? 1 : 0) << "\r\n";
+			    << "[General]\r\nbLinkBars=" << (snapshot.linkBars ? 1 : 0) << "\r\nbAlwaysVisible=" << (snapshot.alwaysVisible ? 1 : 0) << "\r\nbNoOverlap=" << (snapshot.noOverlap ? 1 : 0) << "\r\n";
 			std::string section;
 			for (const auto& [key, value] : Rows(snapshot)) {
 				const auto        dot = key.find('.');

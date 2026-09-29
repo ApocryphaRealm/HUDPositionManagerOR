@@ -43,6 +43,12 @@ namespace hud
 	// maps to the same value from frame to frame (2026-09-29). False when the element has not been measured.
 	bool OffsetRange(const ElementStatus& a_st, double a_withX, double a_withY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY);
 
+	// The same range narrowed by the neighbours' edges while [General] bNoOverlap is on (the owner, 2026-09-29: the
+	// bars line up by stopping where their borders meet): a_all in elements::All() order, a_i the element, a_ownX /
+	// a_ownY its slider's part of the offset in units (so the current position always stays inside the range).
+	bool OffsetRange(const std::vector<ElementStatus>& a_all, std::size_t a_i, const settings::Values& a_s, double a_withX, double a_withY,
+		double a_ownX, double a_ownY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY);
+
 	// what the element inherits from the element(s) it moves with, in percent of the screen (its own offset excluded)
 	std::pair<double, double> MoveWithOffset(const settings::Values& a_s, std::size_t a_i);
 

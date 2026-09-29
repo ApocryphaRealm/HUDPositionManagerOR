@@ -416,6 +416,45 @@ NEW = {
         "Zaktualizuj to ustawienie moim układem",
         "Aktualizovat tuto předvolbu mým rozložením",
     ],
+    "HPM_NoOverlap": [
+        "Elements stop at each other's edges",
+        "要素同士の端で止める",
+        "요소가 서로의 가장자리에서 멈춤",
+        "元素在彼此边缘处停止",
+        "Элементы останавливаются у краёв друг друга",
+        "Elemente halten an den Kanten der anderen an",
+        "Les éléments s'arrêtent aux bords des autres",
+        "Los elementos se detienen en los bordes de los demás",
+        "Gli elementi si fermano ai bordi degli altri",
+        "Elementy zatrzymują się na krawędziach innych",
+        "Prvky se zastaví na okrajích ostatních",
+    ],
+    "HPM_NoOverlapHint": [
+        "On: an element you move stops where its edge meets another element's, so the bars line up without decimal-point work. Off: elements may overlap.",
+        "オン: 動かした要素は別の要素の端に当たったところで止まるので、小数点まで合わせなくてもバーが揃います。オフ: 要素は重なることがあります。",
+        "켜면 움직이는 요소가 다른 요소의 가장자리에 닿는 곳에서 멈추므로 소수점까지 맞추지 않아도 막대가 정렬됩니다. 끄면 요소가 겹칠 수 있습니다.",
+        "开启：移动的元素在其边缘碰到另一元素时停止，这样各栏无需精确到小数点即可对齐。关闭：元素可以重叠。",
+        "Вкл.: перемещаемый элемент останавливается там, где его край касается другого элемента, так что полосы выравниваются без подгонки до десятых. Выкл.: элементы могут перекрываться.",
+        "An: ein bewegtes Element hält an, wo seine Kante auf die eines anderen trifft, so dass sich die Leisten ohne Kommastellen-Arbeit ausrichten. Aus: Elemente dürfen sich überlappen.",
+        "Activé : un élément déplacé s'arrête là où son bord rencontre celui d'un autre, les barres s'alignent donc sans réglage à la décimale. Désactivé : les éléments peuvent se chevaucher.",
+        "Activado: un elemento que muevas se detiene donde su borde toca el de otro, así las barras se alinean sin ajustar decimales. Desactivado: los elementos pueden superponerse.",
+        "Attivato: un elemento che sposti si ferma dove il suo bordo incontra quello di un altro, così le barre si allineano senza lavorare sui decimali. Disattivato: gli elementi possono sovrapporsi.",
+        "Włączone: przesuwany element zatrzymuje się tam, gdzie jego krawędź styka się z krawędzią innego, więc paski wyrównują się bez dłubania w ułamkach. Wyłączone: elementy mogą się nakładać.",
+        "Zapnuto: přesouvaný prvek se zastaví tam, kde se jeho okraj dotkne jiného prvku, takže se lišty zarovnají bez ladění desetin. Vypnuto: prvky se mohou překrývat.",
+    ],
+    "HPM_El_QuickWheel": [
+        "Quick wheel",
+        "クイックホイール",
+        "퀵 휠",
+        "快捷轮盘",
+        "Быстрое колесо",
+        "Schnellrad",
+        "Roue rapide",
+        "Rueda rápida",
+        "Ruota rapida",
+        "Szybkie koło",
+        "Rychlé kolo",
+    ],
 }
 
 
@@ -453,7 +492,7 @@ print("%d keys x %d languages -> %s" % (len(used), len(LANGS), OUT))
 ELEMENTS = [
     ("Health", True), ("Magicka", True), ("Fatigue", True), ("Compass", False), ("Crosshair", False), ("WeaponIcon", False),
     ("MagicIcon", False), ("EffectIcons", False), ("EnemyHealth", False), ("SneakEye", False), ("LevelUp", False), ("Info", False),
-    ("Subtitles", False), ("Breath", False), ("Location", False), ("DamageIndicators", False), ("Notifications", False), ("Tutorial", False),
+    ("Subtitles", False), ("Breath", False), ("Location", False), ("DamageIndicators", False), ("Notifications", False), ("Tutorial", False), ("QuickWheel", False),
 ]
 ini = [
     "; HUD Position Manager for Oblivion - settings. The settings page in Apocrypha Menu Framework writes this file;",
@@ -467,6 +506,8 @@ ini = [
     "bLinkBars=1",
     "; HUD visibility: 0 = the game decides (the bars fade out when full), 1 = the bars stay shown while you play.",
     "bAlwaysVisible=0",
+    "; Elements stop at each other's edges: 1 = an element you move stops where its edge meets another element's; 0 = elements may overlap.",
+    "bNoOverlap=1",
     "",
 ]
 for key, fades in ELEMENTS:

@@ -160,12 +160,14 @@ namespace page
 			case 15: return TR("HPM_El_DamageIndicators", "Damage direction");
 			case 16: return TR("HPM_El_Notifications", "Pop-up notifications");
 			case 17: return TR("HPM_El_Tutorial", "Tutorial messages");
+			case 18: return TR("HPM_El_QuickWheel", "Quick wheel");
 			default: return elements::All()[a_i].english;
 			}
 		}
 
-		void ElementTab(std::size_t a_i, const settings::Values& a_v, const hud::ElementStatus& a_st, bool a_hud)
+		void ElementTab(std::size_t a_i, const settings::Values& a_v, const std::vector<hud::ElementStatus>& a_all, bool a_hud)
 		{
+			const hud::ElementStatus& a_st = a_all[a_i];
 			const auto& el = elements::All()[a_i];
 			auto        e = a_v.elements[a_i];
 			const std::string id = std::string("##") + el.key;
@@ -184,7 +186,7 @@ namespace page
 			float  maxScale = settings::kScaleMax;
 			const double unitW = a_st.viewW > 0.0 ? a_st.viewW : 1920.0, unitH = a_st.viewH > 0.0 ? a_st.viewH : 1080.0;
 			const auto [withX, withY] = hud::MoveWithOffset(a_v, a_i);
-			if (hud::OffsetRange(a_st, withX / 100.0 * unitW, withY / 100.0 * unitH, minX, maxX, minY, maxY)) {
+			if (hud::OffsetRange(a_all, a_i, a_v, withX / 100.0 * unitW, withY / 100.0 * unitH, e.x / 100.0 * unitW, e.y / 100.0 * unitH, minX, maxX, minY, maxY)) {
 				minX = minX / unitW * 100.0;
 				maxX = maxX / unitW * 100.0;
 				minY = minY / unitH * 100.0;
@@ -276,6 +278,11 @@ namespace page
 				settings::Update([&](settings::Values& s) { s.linkBars = v.linkBars; });
 			}
 			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health."));
+			if (Switch(TR("HPM_NoOverlap", "Elements stop at each other's edges"), &v.noOverlap)) {
+				settings::Update([&](settings::Values& s) { s.noOverlap = v.noOverlap; });
+				logger::info("page: elements stop at each other's edges {}", v.noOverlap ? "on" : "off");
+			}
+			Hint(TR("HPM_NoOverlapHint", "On: an element you move stops where its edge meets another element's, so the bars line up without decimal-point work. Off: elements may overlap."));
 
 			ImGui::SeparatorText(TR("HPM_GroupVisibility", "HUD visibility"));
 			if (Switch(TR("HPM_AlwaysAll", "Always visible"), &v.alwaysVisible)) {
@@ -291,7 +298,7 @@ namespace page
 			if (ImGui::BeginTabBar("HudElements", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) {
 				for (std::size_t i = 0; i < elements::Count(); ++i) {
 					if (ImGui::BeginTabItem((std::string(ElementName(i)) + "##tab" + elements::All()[i].key).c_str())) {
-						ElementTab(i, v, st[i], hudFound);
+						ElementTab(i, v, st, hudFound);
 						ImGui::EndTabItem();
 					}
 				}

@@ -24,6 +24,7 @@ namespace settings
 		bool                 enabled = true;        // [General] bEnabled - "Apply my layout"
 		bool                 linkBars = true;       // [General] bLinkBars - Magicka and Fatigue move with Health
 		bool                 alwaysVisible = false; // [General] bAlwaysVisible - the whole HUD: "Always visible" vs "The game decides"
+		bool                 noOverlap = true;      // [General] bNoOverlap - an element stops where its edge meets another's (2026-09-29)
 		std::vector<Element> elements = std::vector<Element>(elements::Count());
 		int                  logLevel = 2;          // [Log] uLogLevel (rule 14: shipped at info)
 	};

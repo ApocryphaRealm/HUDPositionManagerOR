@@ -34,6 +34,69 @@ namespace hud
 
 		std::vector<Tracked> g_el(elements::Count());
 		ue::Handle           g_layout;
+
+		// ---- neighbours ([General] bNoOverlap): an element's edge stops at another element's edge ----------------
+		// (the owner, 2026-09-29: "line up the three bars on top of each other without having to be precise to the
+		// decimal point and it'll just automatically stop once the borders of the widgets meet")
+		struct Rect
+		{
+			bool   valid = false;
+			double l = 0, t = 0, r = 0, b = 0;
+		};
+
+		// does element a_j move with a_i (directly or through the chain, the linked bars included)?
+		bool MovesWith(const settings::Values& a_s, std::size_t a_j, std::size_t a_i)
+		{
+			const auto& all = elements::All();
+			std::size_t cur = a_j;
+			for (int hop = 0; hop < 8; ++hop) {
+				std::string with = a_s.elements[cur].moveWith;
+				if (with.empty() && a_s.linkBars && all[cur].barLink) with = all[cur].barLink;
+				if (with.empty()) return false;
+				const int k = elements::IndexOf(with);
+				if (k < 0) return false;
+				if (static_cast<std::size_t>(k) == a_i) return true;
+				cur = static_cast<std::size_t>(k);
+			}
+			return false;
+		}
+
+		// The travel a_i's rectangle (a_me, where it is NOW) may take before an edge meets a neighbour's: the left may go
+		// down to a_lMin and up to a_lMax, the top likewise. A neighbour whose vertical band overlaps a_me and sits to
+		// its left bounds the leftward travel at its right edge, one to its right bounds the rightward travel, and the
+		// same up and down. A neighbour a_me already overlaps is ignored (else the two could never come apart), as are
+		// hidden ones and the ones that move with a_i (they move together). Unmeasured ones do not exist.
+		void NeighbourLimits(const settings::Values& a_s, std::size_t a_i, const Rect& a_me, const std::vector<Rect>& a_rects,
+			double& a_lMin, double& a_lMax, double& a_tMin, double& a_tMax)
+		{
+			constexpr double eps = 0.5;
+			a_lMin = -1e9; a_lMax = 1e9; a_tMin = -1e9; a_tMax = 1e9;
+			const double w = a_me.r - a_me.l, h = a_me.b - a_me.t;
+			for (std::size_t j = 0; j < a_rects.size(); ++j) {
+				const Rect& o = a_rects[j];
+				if (j == a_i || !o.valid || a_s.elements[j].hide || MovesWith(a_s, j, a_i)) continue;
+				const bool bandY = o.t < a_me.b - eps && o.b > a_me.t + eps;   // side by side
+				const bool bandX = o.l < a_me.r - eps && o.r > a_me.l + eps;   // one above the other
+				if (bandY) {
+					if (o.r <= a_me.l + eps) a_lMin = std::max(a_lMin, o.r);          // to the left
+					else if (o.l >= a_me.r - eps) a_lMax = std::min(a_lMax, o.l - w);   // to the right
+				}
+				if (bandX) {
+					if (o.b <= a_me.t + eps) a_tMin = std::max(a_tMin, o.b);          // above
+					else if (o.t >= a_me.b - eps) a_tMax = std::min(a_tMax, o.t - h);   // below
+				}
+			}
+		}
+
+		std::vector<Rect> TrackedRects()
+		{
+			std::vector<Rect> out(g_el.size());
+			for (std::size_t j = 0; j < g_el.size(); ++j) {
+				const auto& t = g_el[j];
+				if (t.widget.Get() && t.measured && t.vw > 0.0 && t.vh > 0.0) out[j] = { true, t.vx, t.vy, t.vx + t.vw, t.vy + t.vh };
+			}
+			return out;
+		}
 		ULONGLONG            g_lastFind = 0, g_lastLayoutScan = 0;
 
 		std::mutex                 g_lock;   // g_status and g_hudFound, for the page and the tool
@@ -362,6 +425,7 @@ namespace hud
 		void Apply(const settings::Values& a_s, bool a_gameplay)
 		{
 			const auto& all = elements::All();
+			const std::vector<Rect> rects = a_s.noOverlap ? TrackedRects() : std::vector<Rect>(g_el.size());   // the neighbours, as measured
 			for (std::size_t i = 0; i < all.size(); ++i) {
 				auto&         t = g_el[i];
 				auto*         w = t.widget.Get();
@@ -408,6 +472,14 @@ namespace hud
 					const double insetX = (1.0 - all[i].visibleW) * 0.5 * t.vw;   // the undrawn margin may leave the screen
 					ox = std::clamp(ox, -(t.baseVX + insetX), std::max(-(t.baseVX + insetX), g_viewW - t.baseVX - t.vw + insetX));
 					oy = std::clamp(oy, -t.baseVY, std::max(-t.baseVY, g_viewH - t.baseVY - t.vh));
+					if (a_s.noOverlap && t.vw > 0.0 && t.vh > 0.0) {
+						// and against the neighbours' edges, from where the rectangle is now (measured) to where it wants to go
+						const Rect me{ true, t.vx, t.vy, t.vx + t.vw, t.vy + t.vh };
+						double lMin, lMax, tMin, tMax;
+						NeighbourLimits(a_s, i, me, rects, lMin, lMax, tMin, tMax);
+						if (lMin <= lMax) ox = std::clamp(ox, lMin - t.baseVX, lMax - t.baseVX);
+						if (tMin <= tMax) oy = std::clamp(oy, tMin - t.baseVY, tMax - t.baseVY);
+					}
 				}
 				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scale, wantSY = t.baseSY * scale;
 				const bool   atBase = ox == 0.0 && oy == 0.0 && scale == 1.0;
@@ -549,6 +621,42 @@ namespace hud
 		if (a_i >= a_s.elements.size()) return { 0.0, 0.0 };
 		const auto [x, y] = Offset(a_s, a_i);
 		return { x - a_s.elements[a_i].x, y - a_s.elements[a_i].y };
+	}
+
+	bool OffsetRange(const std::vector<ElementStatus>& a_all, std::size_t a_i, const settings::Values& a_s, double a_withX, double a_withY,
+		double a_ownX, double a_ownY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY)
+	{
+		if (a_i >= a_all.size() || !OffsetRange(a_all[a_i], a_withX, a_withY, a_minX, a_maxX, a_minY, a_maxY)) {
+			return false;
+		}
+		if (!a_s.noOverlap || a_s.elements.size() < a_all.size()) {
+			return true;
+		}
+		const auto& st = a_all[a_i];
+		if (st.vw <= 0.0 || st.vh <= 0.0) return true;
+		std::vector<Rect> rects(a_all.size());
+		for (std::size_t j = 0; j < a_all.size(); ++j) {
+			const auto& o = a_all[j];
+			if (o.found && o.measured && o.vw > 0.0 && o.vh > 0.0) rects[j] = { true, o.vx, o.vy, o.vx + o.vw, o.vy + o.vh };
+		}
+		const Rect me{ true, st.vx, st.vy, st.vx + st.vw, st.vy + st.vh };
+		double lMin, lMax, tMin, tMax;
+		NeighbourLimits(a_s, a_i, me, rects, lMin, lMax, tMin, tMax);
+		const double leftAtZero = st.baseVX + a_withX, topAtZero = st.baseVY + a_withY;
+		if (lMin <= lMax) {
+			a_minX = std::max(a_minX, lMin - leftAtZero);
+			a_maxX = std::min(a_maxX, lMax - leftAtZero);
+		}
+		if (tMin <= tMax) {
+			a_minY = std::max(a_minY, tMin - topAtZero);
+			a_maxY = std::min(a_maxY, tMax - topAtZero);
+		}
+		// the slider's current value always stays inside its range (a neighbour that arrived later never throws it)
+		a_minX = std::min(a_minX, a_ownX);
+		a_maxX = std::max(a_maxX, a_ownX);
+		a_minY = std::min(a_minY, a_ownY);
+		a_maxY = std::max(a_maxY, a_ownY);
+		return true;
 	}
 
 	bool HudFound()

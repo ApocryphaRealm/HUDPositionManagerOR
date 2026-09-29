@@ -46,6 +46,9 @@ namespace elements
 			{ "DamageIndicators", "Damage direction", { L"WBP_ModernHud_DamageIndicators_C" }, { "DamageIndicators" }, false, nullptr },
 			{ "Notifications", "Pop-up notifications", { L"WBP_ModernPrefab_NotificationInHUD_C" }, { "NotificationInHUD" }, false, nullptr },
 			{ "Tutorial", "Tutorial messages", { L"WBP_ModernTutorialDisplay_C" }, { "TutorialDisplay" }, false, nullptr },
+			// the quick wheel shown while playing (the owner, 2026-09-29: "change the location or position of the wheel menu in game
+			// only not in the menu") - the HUD layout's own instance; the menu's quick-keys page is another class and is not touched
+			{ "QuickWheel", "Quick wheel", { L"WBP_ModernMenu_QuickKeys_C" }, { "WBP_ModernMenu_QuickKeys" }, false, nullptr },
 		};
 		return kAll;
 	}
