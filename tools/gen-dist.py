@@ -643,9 +643,9 @@ print("%d keys x %d languages -> %s" % (len(used), len(LANGS), OUT))
 
 # the INI with the compiled defaults (Settings.h / Elements.h)
 ELEMENTS = [
-    ("Health", True), ("Magicka", True), ("Fatigue", True), ("Compass", False), ("Crosshair", False), ("WeaponIcon", False),
+    ("Health", True), ("Magicka", True), ("Fatigue", True), ("Compass", False), ("QuickWheel", False), ("Crosshair", False), ("WeaponIcon", False),
     ("MagicIcon", False), ("EffectIcons", False), ("EnemyHealth", False), ("SneakEye", False), ("LevelUp", False), ("Level", False), ("Info", False),
-    ("Subtitles", False), ("Breath", False), ("Location", False), ("DamageIndicators", False), ("Notifications", False), ("Tutorial", False), ("QuickWheel", False),
+    ("Subtitles", False), ("Breath", False), ("Location", False), ("DamageIndicators", False), ("Notifications", False), ("Tutorial", False),
 ]
 ini = [
     "; HUD Position Manager for Oblivion - settings. The settings page in Apocrypha Menu Framework writes this file;",

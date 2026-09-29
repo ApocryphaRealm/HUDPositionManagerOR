@@ -67,6 +67,9 @@ namespace elements
 			{ "Fatigue", "Fatigue", { L"WBP_ModernHud_Fatigue_C" }, { "Fatigue", "FatigueBar" }, true, "Health", 1.0f, false, 0.5f },
 			{ "Breath", "Breath meter", { L"WBP_ModernHud_Breath_C" }, { "WBP_ModernHud_Breath", "Breath" }, true, nullptr, 1.0f, false, 1.0f, { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 0.6) } } }, { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 1.0) } } } },
 			{ "Compass", "Compass", { L"WBP_ModernHud_Compass_C" }, { "Compass" }, true, nullptr, 0.37f },
+			// the quick wheel shown while playing (the owner, 2026-09-29: "change the location or position of the wheel menu in game
+			// only not in the menu") - the HUD layout's own instance; the menu's quick-keys page is another class and is not touched
+			{ "QuickWheel", "Quick wheel", { L"WBP_ModernMenu_QuickKeys_C" }, { "WBP_ModernMenu_QuickKeys" }, false, nullptr, 1.0f, true },
 			{ "Crosshair", "Crosshair", { L"WBP_ModernHud_Reticle_C" }, { "WBP_ModernHud_Reticle", "Reticle" }, false, nullptr },
 			{ "WeaponIcon", "Weapon icon", { L"WBP_ModernHud_WeaponIcon_C" }, { "WeaponIcon" }, false, nullptr },
 			{ "MagicIcon", "Spell icon", { L"WBP_ModernHud_MagicIcon_C" }, { "MagicIcon" }, false, nullptr },
@@ -82,9 +85,6 @@ namespace elements
 			{ "DamageIndicators", "Damage direction", { L"WBP_ModernHud_DamageIndicators_C" }, { "DamageIndicators" }, false, nullptr, 1.0f, false, 1.0f, { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } }, { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } } },
 			{ "Notifications", "Pop-up notifications", { L"WBP_ModernPrefab_NotificationInHUD_C" }, { "NotificationInHUD" }, false, nullptr, 1.0f, false, 1.0f, { { L"Enable Notification", {} } }, {} },
 			{ "Tutorial", "Tutorial messages", { L"WBP_ModernTutorialDisplay_C" }, { "TutorialDisplay" }, false, nullptr, 1.0f, false, 1.0f, { { L"LaunchOpenningAnimation", {} } }, { { L"LaunchClosingAnimation", {} } } },
-			// the quick wheel shown while playing (the owner, 2026-09-29: "change the location or position of the wheel menu in game
-			// only not in the menu") - the HUD layout's own instance; the menu's quick-keys page is another class and is not touched
-			{ "QuickWheel", "Quick wheel", { L"WBP_ModernMenu_QuickKeys_C" }, { "WBP_ModernMenu_QuickKeys" }, false, nullptr, 1.0f, true },
 		};
 		return kAll;
 	}
