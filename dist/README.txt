@@ -12,10 +12,20 @@ WHAT YOU GET
     bars, compass, crosshair, weapon and spell icons, active effects, enemy health, sneak eye, level-up
     gauge, target name and value, subtitles and notifications, breath meter, location name, damage
     direction, pop-up notifications, tutorial messages).
-  * Per element: move left / right, move up / down, size (about its own centre), hide, "move with" another
-    element, reset. Each tab says whether your HUD has that element.
-  * "Apply my layout" (off = the HUD exactly as the game lays it out) and "Move the three bars together"
-    (Magicka and Fatigue follow Health), both on by default.
+  * Per element: move left / right, move up / down (0.1 % of the screen per tick, never off the screen),
+    size (about its own centre), hide, "move with" another element, reset. The bars also get Length and
+    Height on their own. Each tab says whether your HUD has that element. A "Level" element (your level as
+    a text of the game's own style) is added to the HUD, and the quick wheel can be placed in game.
+  * Presets: whole layouts as INI files - load one made by someone else, save your own, update it in place.
+  * Combined widgets: pick any set of widgets and move them as one on shared sliders. The same tab holds the
+    resource bars' "Fill from" (left, centre, right or the game's own - the side the filled part is anchored
+    to) and "Length follows the resource" (the bar grows with your maximum health, magicka or fatigue).
+  * "Show every element": the elements that only appear during an event (enemy health, sneak eye, active
+    effects, subtitles, the level-up gauge, tutorial messages...) are made to show - in the menu and out of it -
+    until you turn it off, so you can place them and look at the result.
+  * "HUD widget collision" (a widget stops where its edge meets another you placed) and "Snap art edges
+    together", both off by default.
+  * "Apply my layout" (off = the HUD exactly as the game lays it out), on by default.
   * HUD visibility: "the game decides" (the bars fade out when full, as the game does) or "Always visible"
     (the bars stay shown while you play; menus, dialogue and loading screens still hide the HUD). Each bar
     also has its own "Always visible" switch.
