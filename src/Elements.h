@@ -16,7 +16,7 @@ namespace elements
 		const char*                      english;    // the page's tab (TR("HPM_El_<key>"))
 		std::vector<const wchar_t*>      classes;    // widget Blueprint class names (the generated class, "_C")
 		std::vector<const char*>         names;      // instance names, tried when no class matched
-		bool                             fades;      // the game hides or fades it on its own: "Always visible" applies
+		bool                             fades;      // the game fades it on its own (the bars: a FadeOut animation on their StatusBar, probed 2026-09-29): "Always visible" applies
 		const char*                      barLink;    // moves with this element while "Move the three bars together" is on
 	};
 
@@ -26,11 +26,11 @@ namespace elements
 			{ "Health", "Health", { L"WBP_ModernHud_Health_C" }, { "Health", "HealthBar" }, true, nullptr },
 			{ "Magicka", "Magicka", { L"WBP_ModernHud_Magicka_C" }, { "Magicka", "MagickaBar" }, true, "Health" },
 			{ "Fatigue", "Fatigue", { L"WBP_ModernHud_Fatigue_C" }, { "Fatigue", "FatigueBar" }, true, "Health" },
-			{ "Compass", "Compass", { L"WBP_ModernHud_Compass_C" }, { "Compass" }, true, nullptr },
-			{ "Crosshair", "Crosshair", { L"WBP_ModernHud_Reticle_C" }, { "WBP_ModernHud_Reticle", "Reticle" }, true, nullptr },
-			{ "WeaponIcon", "Weapon icon", { L"WBP_ModernHud_WeaponIcon_C" }, { "WeaponIcon" }, true, nullptr },
-			{ "MagicIcon", "Spell icon", { L"WBP_ModernHud_MagicIcon_C" }, { "MagicIcon" }, true, nullptr },
-			{ "EffectIcons", "Active effects", { L"WBP_ModernHud_EffectIcons_C" }, { "EffectIcons" }, true, nullptr },
+			{ "Compass", "Compass", { L"WBP_ModernHud_Compass_C" }, { "Compass" }, false, nullptr },
+			{ "Crosshair", "Crosshair", { L"WBP_ModernHud_Reticle_C" }, { "WBP_ModernHud_Reticle", "Reticle" }, false, nullptr },
+			{ "WeaponIcon", "Weapon icon", { L"WBP_ModernHud_WeaponIcon_C" }, { "WeaponIcon" }, false, nullptr },
+			{ "MagicIcon", "Spell icon", { L"WBP_ModernHud_MagicIcon_C" }, { "MagicIcon" }, false, nullptr },
+			{ "EffectIcons", "Active effects", { L"WBP_ModernHud_EffectIcons_C" }, { "EffectIcons" }, false, nullptr },
 			{ "EnemyHealth", "Enemy health", { L"WBP_ModernHud_StatusBarEnemy_C" }, { "StatusBarEnemy", "EnemyHealth" }, false, nullptr },
 			{ "SneakEye", "Sneak eye", { L"WBP_ModernHud_SneakEye_C" }, { "SneakEye" }, false, nullptr },
 			{ "LevelUp", "Level-up gauge", { L"WBP_ModernHud_LevelUpGauge_C" }, { "LevelUpGauge" }, false, nullptr },

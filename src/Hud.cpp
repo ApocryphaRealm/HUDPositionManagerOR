@@ -111,6 +111,19 @@ namespace hud
 					Visit(ObjProp(slots->data[i], "Content"), a_depth + 1, a_walk);
 				}
 			}
+			// The layout's layers are CommonUI activatable-widget STACKS (UVActivatableWidgetStack), not panels: the HUD
+			// is the game layer's DisplayedWidget, and the stack keeps every pushed widget in WidgetList (the first
+			// walk stopped at 21 widgets and found no element, 2026-09-29 11:21).
+			if (auto* displayed = ObjProp(a_widget, "DisplayedWidget")) {
+				Visit(displayed, a_depth + 1, a_walk);
+			}
+			if (const auto off = Off(cls, "WidgetList"); off >= 0) {
+				if (auto* list = ue::At<RawArray>(a_widget, off)) {
+					for (std::int32_t i = 0; list->data && i < list->num && i < 256; ++i) {
+						Visit(list->data[i], a_depth + 1, a_walk);
+					}
+				}
+			}
 		}
 
 		UE::UObject* Layout()
@@ -222,6 +235,45 @@ namespace hud
 			c.Run();
 		}
 
+		// "Always visible" for a bar (2026-09-29 probe): WBP_ModernHud_Health holds a WBP_ModernHud_StatusBar child whose
+		// FadeOut animation drives its ProgressBar image's RenderOpacity to 0 - the element's root never changes. So the
+		// element's subtree is walked (a bar is three widgets): every user widget carrying a FadeOut animation has it
+		// stopped while it plays, and every widget under it whose opacity fell is put back to 1. Returns how many
+		// widgets were held up this frame.
+		int HoldSubtreeVisible(UE::UObject* a_widget, int a_depth, bool& a_stoppedFade)
+		{
+			if (!a_widget || a_depth > 8) {
+				return 0;
+			}
+			int   held = 0;
+			auto* cls = a_widget->GetClass();
+			if (UserWidgetClass() && cls->IsChildOf(UserWidgetClass())) {
+				if (auto* fade = ObjProp(a_widget, "FadeOut")) {
+					ue::Call playing(a_widget, L"IsAnimationPlaying");
+					playing.Set("InAnimation", fade);
+					const bool* isPlaying = playing.Run() ? static_cast<const bool*>(playing.At("ReturnValue")) : nullptr;
+					if (isPlaying && *isPlaying) {
+						ue::Call stop(a_widget, L"StopAnimation");
+						stop.Set("InAnimation", fade);
+						stop.Run();
+						a_stoppedFade = true;
+					}
+				}
+				held += HoldSubtreeVisible(ObjProp(ObjProp(a_widget, "WidgetTree"), "RootWidget"), a_depth + 1, a_stoppedFade);
+			}
+			if (PanelClass() && cls->IsChildOf(PanelClass())) {
+				auto* slots = ue::At<RawArray>(a_widget, Off(cls, "Slots"));
+				for (std::int32_t i = 0; slots && slots->data && i < slots->num && i < 64; ++i) {
+					held += HoldSubtreeVisible(ObjProp(slots->data[i], "Content"), a_depth + 1, a_stoppedFade);
+				}
+			}
+			if (a_depth > 0 && Opacity(a_widget) < 0.999f) {
+				SetOpacity(a_widget, 1.0f);
+				++held;
+			}
+			return held;
+		}
+
 		// the offset an element gets: its own, plus the offset of what it moves with (chains followed, loops cut)
 		std::pair<double, double> Offset(const settings::Values& a_s, std::size_t a_i, int a_depth = 0)
 		{
@@ -323,18 +375,16 @@ namespace hud
 				// always visible: in gameplay only, for the elements the game fades or hides on its own
 				const bool always = !hide && a_gameplay && all[i].fades && (a_s.alwaysVisible || e.alwaysVisible);
 				if (always) {
-					const float op = Opacity(w);
-					const auto  v = Visibility(w);
-					if (op < 0.999f || v == kHidden || v == kCollapsed) {
-						if (!t.forced) {
-							logger::info("hud: {} always visible - the game had it at opacity {:.2f}, visibility {}; held up", all[i].key, op, v);
-						}
-						if (op < 0.999f) {
-							SetOpacity(w, 1.0f);
-						}
-						if (v == kHidden || v == kCollapsed) {
-							SetVisibility(w, kSelfHitTestInvisible);
-						}
+					if (Opacity(w) < 0.999f) {
+						SetOpacity(w, 1.0f);
+					}
+					if (const auto v = Visibility(w); v == kHidden || v == kCollapsed) {
+						SetVisibility(w, kSelfHitTestInvisible);
+					}
+					bool      stopped = false;
+					const int held = HoldSubtreeVisible(w, 0, stopped);
+					if ((held > 0 || stopped) && !t.forced) {
+						logger::info("hud: {} always visible - {} widget(s) held at full opacity{}", all[i].key, held, stopped ? ", its fade-out stopped" : "");
 					}
 					t.forced = true;
 				} else if (t.forced) {

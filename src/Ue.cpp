@@ -64,6 +64,13 @@ namespace ue
 			return false;   // not loaded yet: asked again later (rule 17)
 		}
 		const auto keyIndex = Offset(vm, "KeyIndex");
+		// The class object exists before its property chain is linked (found 1 s after load with no KeyIndex at all,
+		// 2026-09-29): a missing property is "not yet", asked again later (rule 17); only a property found at the
+		// WRONG offset is a layout that is not UE5's. After two minutes without it, the check gives up.
+		static const ULONGLONG firstAsk = GetTickCount64();
+		if (keyIndex < 0 && GetTickCount64() - firstAsk < 120000) {
+			return false;
+		}
 		g_state.store(keyIndex == 0xD0 ? 1 : -1);
 		if (g_state.load() > 0) {
 			logger::info("ue: property offsets proven (VQuickKeysMenuViewModel KeyIndex at 0x{:X})", keyIndex);

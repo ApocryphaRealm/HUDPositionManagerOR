@@ -76,7 +76,7 @@ namespace page
 			} else if (!a_st.found) {
 				ImGui::TextWrapped("%s", TR("HPM_NotFound", "Not in your HUD right now: it may appear later, or the HUD you use may not have it. Its settings are kept."));
 			} else {
-				Hint(TR("HPM_Found", "In your HUD - changes show at once."));
+				Hint(TR("HPM_Found", "In your HUD. Changes show at once."));
 			}
 			bool changed = false;
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
@@ -88,7 +88,7 @@ namespace page
 			changed |= Switch((std::string(TR("HPM_Hide", "Hide")) + id + "h").c_str(), &e.hide);
 			if (el.fades) {
 				changed |= Switch((std::string(TR("HPM_AlwaysOne", "Always visible")) + id + "a").c_str(), &e.alwaysVisible);
-				Hint(TR("HPM_AlwaysOneHint", "the game fades or hides this on its own; on keeps it shown while you play"));
+				Hint(TR("HPM_AlwaysOneHint", "The game fades this out on its own. On: it stays shown while you play."));
 			}
 			// move with: nothing, or any other element
 			std::vector<std::string> labels{ TR("HPM_MoveWithNone", "Nothing - on its own") };
@@ -108,7 +108,7 @@ namespace page
 				changed = true;
 			}
 			if (el.barLink && a_v.linkBars && e.moveWith.empty()) {
-				Hint(TR("HPM_LinkedHint", "moves with Health while \"Move the three bars together\" is on"));
+				Hint(TR("HPM_LinkedHint", "Moves with Health while \"Move the three bars together\" is on."));
 			}
 			if (changed) {
 				settings::Update([&](settings::Values& s) { s.elements[a_i] = e; });
@@ -131,19 +131,19 @@ namespace page
 				settings::Update([&](settings::Values& s) { s.enabled = v.enabled; });
 				logger::info("page: layout {}", v.enabled ? "on" : "off");
 			}
-			Hint(TR("HPM_EnabledHint", "off: every element back where the game puts it"));
+			Hint(TR("HPM_EnabledHint", "Off: every element goes back to where the game puts it."));
 			if (Switch(TR("HPM_LinkBars", "Move the three bars together"), &v.linkBars)) {
 				settings::Update([&](settings::Values& s) { s.linkBars = v.linkBars; });
 			}
-			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health"));
+			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health."));
 
 			ImGui::SeparatorText(TR("HPM_GroupVisibility", "HUD visibility"));
 			if (Switch(TR("HPM_AlwaysAll", "Always visible"), &v.alwaysVisible)) {
 				settings::Update([&](settings::Values& s) { s.alwaysVisible = v.alwaysVisible; });
 				logger::info("page: HUD {}", v.alwaysVisible ? "always visible" : "as the game decides");
 			}
-			Hint(v.alwaysVisible ? TR("HPM_AlwaysAllOnHint", "the bars, compass, crosshair and icons stay shown while you play (menus, dialogue and loading still hide the HUD)")
-			                     : TR("HPM_AlwaysAllOffHint", "off: the game decides - bars fade when full, parts hide as the game chooses"));
+			Hint(v.alwaysVisible ? TR("HPM_AlwaysAllOnHint", "The bars stay shown while you play. Menus, dialogue and loading screens still hide the HUD.")
+			                     : TR("HPM_AlwaysAllOffHint", "Off: the game decides. The bars fade out when they are full."));
 
 			ImGui::Spacing();
 			const bool hudFound = hud::HudFound();
