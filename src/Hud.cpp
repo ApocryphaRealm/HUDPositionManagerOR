@@ -773,9 +773,16 @@ namespace hud
 					if (Opacity(w) < 0.999f) SetOpacity(w, 1.0f);
 					bool stopped = false;
 					HoldSubtreeVisible(w, 0, stopped);
-					if (!all[i].previewOn.empty() && GetTickCount64() - t.previewCalledAt >= 1000) {   // the widget's own show calls, once a second
-						t.previewCalledAt = GetTickCount64();
-						RunPreviewCalls(w, all[i].previewOn, all[i].key);
+					if (!all[i].previewOn.empty()) {
+						// the widget's own show calls: ONCE when the preview starts, and again only if the game has hidden the
+						// widget since (its own timers), at most every two seconds - a call a second replayed every appear
+						// animation (the owner, 2026-09-29: "reapplying every frame instead of just staying on screen")
+						const ULONGLONG nowMs = GetTickCount64();
+						const bool hiddenAgain = t.previewCalledAt != 0 && (Visibility(w) == kHidden || Visibility(w) == kCollapsed || Opacity(w) < 0.5f);
+						if (t.previewCalledAt == 0 || (hiddenAgain && nowMs - t.previewCalledAt >= 2000)) {
+							t.previewCalledAt = nowMs;
+							RunPreviewCalls(w, all[i].previewOn, all[i].key);
+						}
 					}
 				} else if (t.shownByUs) {
 					t.shownByUs = false;
