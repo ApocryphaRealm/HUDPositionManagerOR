@@ -46,6 +46,8 @@ namespace settings
 				{ "General.bLinkBars", a_v.linkBars ? "1" : "0" },
 				{ "General.bAlwaysVisible", a_v.alwaysVisible ? "1" : "0" },
 				{ "General.bWidgetCollision", a_v.noOverlap ? "1" : "0" },
+				{ "General.bSnapEdges", a_v.snapEdges ? "1" : "0" },
+				{ "General.fSnapDistance", std::format("{:.0f}", a_v.snapDistance) },
 			};
 			const auto& all = elements::All();
 			for (std::size_t i = 0; i < all.size() && i < a_v.elements.size(); ++i) {
@@ -79,6 +81,7 @@ namespace settings
 					e.moveWith.clear();   // an unknown element, or itself
 				}
 			}
+			a_v.snapDistance = std::clamp(a_v.snapDistance, 0.0f, 40.0f);
 			a_v.logLevel = std::clamp(a_v.logLevel, 0, 6);
 		}
 	}
@@ -161,6 +164,8 @@ namespace settings
 			if (const auto* s = Get(a_e, "General.bLinkBars")) a_v.linkBars = Flag(*s);
 			if (const auto* s = Get(a_e, "General.bAlwaysVisible")) a_v.alwaysVisible = Flag(*s);
 			if (const auto* s = Get(a_e, "General.bWidgetCollision")) a_v.noOverlap = Flag(*s);
+			if (const auto* s = Get(a_e, "General.bSnapEdges")) a_v.snapEdges = Flag(*s);
+			if (const auto* s = Get(a_e, "General.fSnapDistance")) a_v.snapDistance = static_cast<float>(std::atof(s->c_str()));
 			const auto& all = elements::All();
 			a_v.elements.resize(all.size());
 			int moved = 0;
@@ -340,7 +345,7 @@ namespace settings
 			out << "; HUD Position Manager preset - a whole layout. Load it from the Presets tab; every element the file\r\n"
 			    << "; leaves out goes back to the game's own layout. fX / fY are a percentage of the screen.\r\n"
 			    << "[Preset]\r\nsName=" << a_name << "\r\nsAuthor=" << a_author << "\r\nsNote=" << a_note << "\r\n\r\n"
-			    << "[General]\r\nbLinkBars=" << (snapshot.linkBars ? 1 : 0) << "\r\nbAlwaysVisible=" << (snapshot.alwaysVisible ? 1 : 0) << "\r\nbWidgetCollision=" << (snapshot.noOverlap ? 1 : 0) << "\r\n";
+			    << "[General]\r\nbLinkBars=" << (snapshot.linkBars ? 1 : 0) << "\r\nbAlwaysVisible=" << (snapshot.alwaysVisible ? 1 : 0) << "\r\nbWidgetCollision=" << (snapshot.noOverlap ? 1 : 0) << "\r\nbSnapEdges=" << (snapshot.snapEdges ? 1 : 0) << "\r\nfSnapDistance=" << std::format("{:.0f}", snapshot.snapDistance) << "\r\n";
 			std::string section;
 			for (const auto& [key, value] : Rows(snapshot)) {
 				const auto        dot = key.find('.');

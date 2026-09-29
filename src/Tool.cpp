@@ -24,7 +24,7 @@ namespace tool
 				els[elements::All()[i].key] = { { "x", e.x }, { "y", e.y }, { "scale", e.scale }, { "hide", e.hide }, { "alwaysVisible", e.alwaysVisible },
 					{ "moveWith", e.moveWith } };
 			}
-			return { { "enabled", v.enabled }, { "linkBars", v.linkBars }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "elements", els } };
+			return { { "enabled", v.enabled }, { "linkBars", v.linkBars }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "snapEdges", v.snapEdges }, { "snapDistance", v.snapDistance }, { "elements", els } };
 		}
 
 		std::string Set(const json& a_args)
@@ -36,12 +36,16 @@ namespace tool
 			}
 			const json& val = a_args["value"];
 			if (el.empty()) {
-				if ((key == "enabled" || key == "linkBars" || key == "alwaysVisible" || key == "widgetCollision") && val.is_boolean()) {
+				if ((key == "enabled" || key == "linkBars" || key == "alwaysVisible" || key == "widgetCollision" || key == "snapEdges") && val.is_boolean()) {
 					const bool b = val.get<bool>();
-					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "linkBars" ? s.linkBars : key == "widgetCollision" ? s.noOverlap : s.alwaysVisible) = b; });
+					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "linkBars" ? s.linkBars : key == "widgetCollision" ? s.noOverlap : key == "snapEdges" ? s.snapEdges : s.alwaysVisible) = b; });
 					return {};
 				}
-				return "without an element: enabled, linkBars, alwaysVisible, widgetCollision (bool)";
+				if (key == "snapDistance" && val.is_number()) {
+					settings::Update([&](settings::Values& s) { s.snapDistance = val.get<float>(); });
+					return {};
+				}
+				return "without an element: enabled, linkBars, alwaysVisible, widgetCollision, snapEdges (bool), snapDistance (number)";
 			}
 			const int i = elements::IndexOf(el);
 			if (i < 0) {

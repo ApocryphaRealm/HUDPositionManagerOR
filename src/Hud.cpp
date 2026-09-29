@@ -99,6 +99,34 @@ namespace hud
 			}
 		}
 
+		// Snap ([General] bSnapEdges): the nearest edge of another PLACED widget's art within a_dist of one of a_me's edges,
+		// per axis - a_me's left and right against the other's left and right, top and bottom against top and bottom. The
+		// smallest move wins on each axis; 0 when nothing is near. Hidden neighbours, the ones that move with a_i and
+		// the game-placed ones are left out, as for the collision.
+		void SnapDeltas(const settings::Values& a_s, std::size_t a_i, const Rect& a_me, const std::vector<Rect>& a_rects, double a_dist, double& a_dx, double& a_dy)
+		{
+			a_dx = 0.0; a_dy = 0.0;
+			double bestX = a_dist + 1e-6, bestY = a_dist + 1e-6;
+			for (std::size_t j = 0; j < a_rects.size(); ++j) {
+				const Rect& o = a_rects[j];
+				if (j == a_i || !o.valid || a_s.elements[j].hide || MovesWith(a_s, j, a_i)) continue;
+				const auto& oe = a_s.elements[j];
+				if (oe.x == 0.0f && oe.y == 0.0f && oe.scale == 1.0f) continue;
+				for (const double mine : { a_me.l, a_me.r }) {
+					for (const double theirs : { o.l, o.r }) {
+						const double d = theirs - mine;
+						if (std::abs(d) < bestX) { bestX = std::abs(d); a_dx = d; }
+					}
+				}
+				for (const double mine : { a_me.t, a_me.b }) {
+					for (const double theirs : { o.t, o.b }) {
+						const double d = theirs - mine;
+						if (std::abs(d) < bestY) { bestY = std::abs(d); a_dy = d; }
+					}
+				}
+			}
+		}
+
 		std::vector<Rect> TrackedRects()
 		{
 			std::vector<Rect> out(g_el.size());
@@ -565,7 +593,7 @@ namespace hud
 		void Apply(const settings::Values& a_s, bool a_gameplay)
 		{
 			const auto& all = elements::All();
-			const std::vector<Rect> rects = a_s.noOverlap ? TrackedRects() : std::vector<Rect>(g_el.size());   // the neighbours, as measured
+			const std::vector<Rect> rects = (a_s.noOverlap || a_s.snapEdges) ? TrackedRects() : std::vector<Rect>(g_el.size());   // the neighbours' art, as measured
 			for (std::size_t i = 0; i < all.size(); ++i) {
 				auto&         t = g_el[i];
 				auto*         w = t.widget.Get();
@@ -619,6 +647,15 @@ namespace hud
 						NeighbourLimits(a_s, i, me, rects, lMin, lMax, tMin, tMax);
 						if (lMin <= lMax) ox = std::clamp(ox, lMin - t.baseDX, lMax - t.baseDX);
 						if (tMin <= tMax) oy = std::clamp(oy, tMin - t.baseDY, tMax - t.baseDY);
+					}
+					if (a_s.snapEdges && a_s.snapDistance > 0.0f && t.drawn && !(e.x == 0.0f && e.y == 0.0f && e.scale == 1.0f)) {
+						// the art's edges where the offset puts them, pulled onto the nearest edge of another placed widget's art
+						const double l = t.baseDX + ox, tp = t.baseDY + oy;
+						const Rect me{ true, l, tp, l + t.dw, tp + t.dh };
+						double sdx, sdy;
+						SnapDeltas(a_s, i, me, rects, a_s.snapDistance, sdx, sdy);
+						ox += sdx;
+						oy += sdy;
 					}
 				}
 				if (all[i].moveViaSlot && ApplySlotShift(w, t, ox, oy)) {

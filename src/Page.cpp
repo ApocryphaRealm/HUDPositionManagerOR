@@ -278,6 +278,18 @@ namespace page
 				settings::Update([&](settings::Values& s) { s.linkBars = v.linkBars; });
 			}
 			Hint(TR("HPM_LinkBarsHint", "Magicka and Fatigue move with Health."));
+			if (Switch(TR("HPM_Snap", "Snap art edges together"), &v.snapEdges)) {
+				settings::Update([&](settings::Values& s) { s.snapEdges = v.snapEdges; });
+				logger::info("page: snap art edges {}", v.snapEdges ? "on" : "off");
+			}
+			Hint(TR("HPM_SnapHint", "On: when an edge of a widget you move comes close to an edge of another widget you have placed, it pulls onto that line, so two widgets meet or align exactly even when a slider tick overshoots. Off: widgets sit exactly where the sliders put them."));
+			if (v.snapEdges) {
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				if (ImGui::SliderFloat((std::string(TR("HPM_SnapDistance", "Snap distance")) + "##snapdist").c_str(), &v.snapDistance, 1.0f, 30.0f, "%.0f")) {
+					settings::Update([&](settings::Values& s) { s.snapDistance = v.snapDistance; });
+				}
+				Hint(TR("HPM_SnapDistanceHint", "How close an edge has to come before it snaps, in screen units (the screen is 1080 tall)."));
+			}
 			if (Switch(TR("HPM_NoOverlap", "HUD widget collision"), &v.noOverlap)) {
 				settings::Update([&](settings::Values& s) { s.noOverlap = v.noOverlap; });
 				logger::info("page: elements stop at each other's edges {}", v.noOverlap ? "on" : "off");
