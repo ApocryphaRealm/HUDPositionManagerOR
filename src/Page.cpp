@@ -215,7 +215,7 @@ namespace page
 			if (k == "Subtitles") return TR("HPM_El_Subtitles", "Subtitles and notifications");
 			if (k == "Breath") return TR("HPM_El_Breath", "Breath meter");
 			if (k == "Location") return TR("HPM_El_Location", "Location name");
-			if (k == "DamageIndicators") return TR("HPM_El_DamageIndicators", "Damage direction and warning icons");
+			if (k == "DamageIndicators") return TR("HPM_El_DamageIndicators", "Warning icons");
 			if (k == "Notifications") return TR("HPM_El_Notifications", "Pop-up notifications");
 			if (k == "Tutorial") return TR("HPM_El_Tutorial", "Tutorial messages");
 			if (k == "QuickWheel") return TR("HPM_El_QuickWheel", "Quick wheel");

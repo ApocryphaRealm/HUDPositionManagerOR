@@ -132,7 +132,7 @@ namespace elements
 				.previewOn = { { L"DisplayArea", { ArgText("AreaName", "HPM_PreviewArea", "Area name") } }, { L"Update Visibility", { ArgBool("Visible", true), ArgBool("Area Discovered", true) } } },
 				.previewOff = { { L"Update Visibility", { ArgBool("Visible", false), ArgBool("Area Discovered", false) } } } },
 			// Always visible (the owner, 2026-09-29) keeps its warning icons shown through the same calls as the preview
-			{ .key = "DamageIndicators", .english = "Damage direction", .classes = { L"WBP_ModernHud_DamageIndicators_C" }, .names = { "DamageIndicators" }, .fades = true,
+			{ .key = "DamageIndicators", .english = "Warning icons", .classes = { L"WBP_ModernHud_DamageIndicators_C" }, .names = { "DamageIndicators" }, .fades = true,
 				.previewOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
 				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } },
 				.holdOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },

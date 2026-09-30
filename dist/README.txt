@@ -10,8 +10,8 @@ WHAT YOU GET
 ------------
   * A page "HUD Position Manager" in the Apocrypha Menu Framework: one tab per HUD element (the three
     bars, compass, crosshair, weapon and spell icons, active effects, enemy health, sneak eye, level-up
-    gauge, target name and value, subtitles and notifications, breath meter, location name, damage
-    direction, pop-up notifications, tutorial messages).
+    gauge, target name and value, subtitles and notifications, breath meter, location name, the warning
+    icons (weapon and armour condition, over-encumbered), pop-up notifications, tutorial messages).
   * Per element: move left / right, move up / down (0.1 % of the screen per tick, never off the screen),
     size (about its own centre), hide, "move with" another element, reset. The bars also get Length and
     Height on their own. Each tab says whether your HUD has that element. A "Level" element (your level as
