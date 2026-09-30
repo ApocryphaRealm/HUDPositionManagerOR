@@ -344,7 +344,8 @@ namespace hud
 			// the HUD's view model is only given the progress on a skill event: until then the player's own count of major
 			// skill advances since the last level (ten make a level) stands in (the gauge came up empty, 2026-09-29)
 			auto* player = RE::PlayerCharacter::GetSingleton();
-			const float fromPlayer = player ? std::clamp(static_cast<float>(player->skillAdvanceCount) / 10.0f, 0.0f, 1.0f) : -1.0f;
+			const bool placed = player && player->parentCell != nullptr;   // no character before a save is loaded
+			const float fromPlayer = placed ? std::clamp(static_cast<float>(player->skillAdvanceCount) / 10.0f, 0.0f, 1.0f) : -1.0f;
 			static bool logged = false;
 			if (!logged && fromHud >= 0.0f) { logged = true; logger::info("hud: level progress - the HUD says {:.3f}, the player's skill advances {}", fromHud, player ? player->skillAdvanceCount : -1); }
 			return fromHud > 0.0f ? fromHud : fromPlayer;
@@ -353,7 +354,8 @@ namespace hud
 		void SetLevelGauge(UE::UObject* a_w, Tracked& a_t)
 		{
 			auto* player = RE::PlayerCharacter::GetSingleton();
-			const int level = player ? static_cast<int>(player->GetLevel()) : 0;
+			if (!player || !player->parentCell) return;   // no character yet (the main menu): nothing to show, nothing to ask it
+			const int level = static_cast<int>(player->GetLevel());
 			const float progress = LevelProgress();
 			if (auto* bar = ObjProp(a_w, "AltarProgressBar"); bar && progress >= 0.0f && std::abs(progress - a_t.shownProgress) > 0.004f) {
 				if (auto* mid = DynamicMaterial(bar)) {
@@ -1227,7 +1229,7 @@ namespace hud
 			double     max[3]{ 0.0, 0.0, 0.0 };   // health, magicka, fatigue
 		} g_stat;
 
-		double LinkedLength(const char* a_key, const settings::Element& a_e)
+		double LinkedLength(const char* a_key, const settings::Element& a_e, bool a_gameplay)
 		{
 			const int which = std::string_view(a_key) == "Health" ? 0 : std::string_view(a_key) == "Magicka" ? 1 : 2;
 			const ULONGLONG now = GetTickCount64();
@@ -1237,8 +1239,11 @@ namespace hud
 				vm = ue::FirstOf(ue::Class(L"/Script/Altar.VHUDMainViewModel"));
 				g_stat.vm.Set(vm);
 			}
+			// only a PLACED player in gameplay: at the main menu the singleton exists with no character loaded, and its actor
+			// values dereference a null inside the game (the crash of 2026-09-29 23:08:54, TestBench crash record)
 			auto* player = RE::PlayerCharacter::GetSingleton();
-			if (vm && player && g_stat.proven >= 0 && now - g_stat.readAt >= 1000) {
+			const bool placed = player && a_gameplay && player->parentCell != nullptr;
+			if (vm && placed && g_stat.proven >= 0 && now - g_stat.readAt >= 1000) {
 				g_stat.readAt = now;
 				auto* cls = vm->GetClass();
 				const float* healthBar = ue::At<float>(vm, Off(cls, "HealthBarValue"));
@@ -1393,7 +1398,7 @@ namespace hud
 				ox = ox / 100.0 * unitW;
 				oy = oy / 100.0 * unitH;
 				const double scale = a_s.enabled && !minimapOwns ? e.scale : 1.0;
-				const double linked = a_s.enabled && e.linkLength && all[i].stat ? LinkedLength(all[i].key, e) : 1.0;   // "Length follows the resource"
+				const double linked = a_s.enabled && e.linkLength && all[i].stat ? LinkedLength(all[i].key, e, a_gameplay) : 1.0;   // "Length follows the resource"
 				const bool   sizeByLayout = all[i].sizeImage != nullptr;   // Length / Height as the named image's layout size, not the render scale
 				const double scaleX = scale * (a_s.enabled && !minimapOwns && !sizeByLayout ? e.stretchX * linked : 1.0), scaleY = scale * (a_s.enabled && !minimapOwns && !sizeByLayout ? e.stretchY : 1.0);   // Length / Height on top of Size
 				if (sizeByLayout) ApplyLayoutSize(w, t, all[i], a_s.enabled ? e.stretchX : 1.0f, a_s.enabled ? e.stretchY : 1.0f);
