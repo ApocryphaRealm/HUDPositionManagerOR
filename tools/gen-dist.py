@@ -923,6 +923,32 @@ NEW = {
         "Teraz umieszcza go Minimap Menu: suwaki poniżej czekają, aż minimapa go puści.",
         "Teď ho umisťuje Minimap Menu: posuvníky níže čekají, až ho minimapa pustí.",
     ],
+    "HPM_Radius": [
+        "Radius",
+        "半径",
+        "반경",
+        "半径",
+        "Радиус",
+        "Radius",
+        "Rayon",
+        "Radio",
+        "Raggio",
+        "Promień",
+        "Poloměr",
+    ],
+    "HPM_RadiusHint": [
+        "How far from the centre of the screen the marks sit, in pixels. Move and Size below shift and scale the whole ring.",
+        "画面中央からマークまでの距離（ピクセル）です。下の移動とサイズはリング全体を動かし、拡大縮小します。",
+        "화면 중앙에서 표시까지의 거리(픽셀)입니다. 아래의 이동과 크기는 고리 전체를 옮기고 크기를 바꿉니다.",
+        "标记离屏幕中心的距离（像素）。下面的移动和大小会平移和缩放整个圆环。",
+        "Насколько далеко от центра экрана стоят метки, в пикселях. Сдвиг и размер ниже перемещают и масштабируют всё кольцо.",
+        "Wie weit die Markierungen von der Bildschirmmitte entfernt sind, in Pixeln. Verschieben und Größe darunter verschieben und skalieren den ganzen Ring.",
+        "La distance des marques au centre de l'écran, en pixels. Déplacer et Taille ci-dessous déplacent et redimensionnent tout l'anneau.",
+        "A qué distancia del centro de la pantalla quedan las marcas, en píxeles. Mover y Tamaño, abajo, desplazan y escalan todo el anillo.",
+        "Quanto lontano dal centro dello schermo stanno i segni, in pixel. Sposta e Dimensione qui sotto spostano e scalano l'intero anello.",
+        "Jak daleko od środka ekranu są znaczniki, w pikselach. Przesuń i Rozmiar poniżej przesuwają i skalują cały pierścień.",
+        "Jak daleko od středu obrazovky značky leží, v pixelech. Posun a Velikost níže posouvají a mění velikost celého prstence.",
+    ],
     "HPM_El_DamageDirection": [
         "Damage direction indicator",
         "被弾方向インジケーター",
@@ -1032,6 +1058,8 @@ for key, fades, bar, stat in ELEMENTS:
     if stat:
         ini.append("; Length follows the resource: 1 = the bar's length grows with your maximum; it is 1.00x long at fPointsPerLength points.")
         ini += ["bLinkLength=0", "fPointsPerLength=100", "; Grows toward: 0 = both sides (about the centre), 1 = the right (anchored left), 2 = the left (anchored right).", "iGrow=0"]
+    if key in ("DamageDirection", "SneakDetection"):
+        ini += ["; Radius: how far from the screen's centre the marks sit, in pixels (40-500).", "fRadius=%d" % (150 if key == "DamageDirection" else 110)]
     ini.append("")
 ini += ["[Group]", "; Combined widgets: the elements (section names, comma-separated) that move as one on the shared sliders, and that shared offset.", "sMembers=", "fX=0", "fY=0", ""]
 ini += ["[Log]", "; 0 = trace ... 6 = off. Shipped at 2 (info).", "uLogLevel=2", ""]

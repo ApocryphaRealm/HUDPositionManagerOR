@@ -28,6 +28,11 @@ namespace hud
 			// the indicators (createNative): their marks, and what each was last given
 			std::vector<UE::UObject*>   marks;
 			std::vector<float>          markOp, markAng, markColour, markSize;
+			std::vector<int>            markFrame;          // the sneak eyes: the flipbook frame each shows
+			float                       ringRadius = -1.0f; // the radius the marks were placed at
+			bool                        artSet = false;     // the game's textures are on the marks
+			ULONGLONG                   artTriedAt = 0;
+			UE::UObject*                area = nullptr;     // the transparent image that gives the ring its size
 			float                       lastHealth = -1.0f;
 			std::vector<IndicatorFlash> flashes;
 			ULONGLONG                   hitLoggedAt = 0;
@@ -1433,13 +1438,14 @@ namespace hud
 				AddAligned(box, area, 2, 2);
 				SetImageSize(area, damage ? 340.0 : 260.0, damage ? 340.0 : 260.0);
 				SetOpacity(area, 0.0f);
+				a_t.area = area;
 			}
-			for (int k = 0; k < 8; ++k) {
+			for (int k = 0; k < (damage ? 8 : 12); ++k) {
 				auto* m = NewWidget(L"/Script/UMG.Image", tree);
 				if (!m) break;
 				AddAligned(box, m, 2, 2);
-				if (damage) { SetImageSize(m, 120.0, 12.0); SetTint(m, 0.86f, 0.07f, 0.04f); }
-				else { SetImageSize(m, 20.0, 20.0); SetTint(m, 1.0f, 1.0f, 1.0f); SetAngle(m, 45.0f); }
+				if (damage) { SetImageSize(m, 190.0, 34.0); SetTint(m, 0.95f, 0.06f, 0.03f); }
+				else { SetImageSize(m, 40.0, 20.0); SetTint(m, 1.0f, 1.0f, 1.0f); }
 				SetOpacity(m, 0.0f);
 				a_t.marks.push_back(m);
 			}
@@ -1447,6 +1453,7 @@ namespace hud
 			a_t.markAng.assign(a_t.marks.size(), -999.0f);
 			a_t.markColour.assign(a_t.marks.size(), damage ? 1.0f : 0.0f);
 			a_t.markSize.assign(a_t.marks.size(), 20.0f);
+			a_t.markFrame.assign(a_t.marks.size(), -1);
 			SetVisibility(box, kSelfHitTestInvisible);
 			a_t.created = true;
 			logger::info("hud: {} built on the HUD layer ({} marks)", a_el.key, a_t.marks.size());
@@ -1461,6 +1468,133 @@ namespace hud
 			bool                               sneaking = false;
 			std::vector<std::pair<float, float>> hostiles;   // (distance cm, bearing deg)
 		};
+
+		// ---- who can detect the player (2026-09-30) ----------------------------------------------------------------------
+		// Oblivion's HighProcess keeps, at +0x2B8, a BSSimpleList of detection entries - the actors that process's actor
+		// detects: { Actor* actor; +0x08 u8 level (0 lost, 1 unseen, 2 noticed, 3 seen); +0x10 s32 value }. The PLAYER's
+		// list names the actors around them; each of those actors' own list holds its entry for the player, which is how
+		// well that actor detects the player. Probed live on 2026-09-30 (the prison guards moving 2 <-> 3 as they looked).
+		// A process is read only when its vtable is the player's own (HighProcess) - lower process levels have no such list.
+		struct ObserverRaw
+		{
+			float        bearing;   // clockwise from north, degrees (Oblivion's heading convention, as the compass)
+			float        distance;  // game units
+			std::int32_t level;
+			std::int32_t value;
+		};
+
+		constexpr std::ptrdiff_t kProcessOffset = 0x138;    // MobileObject::currentProcess
+		constexpr std::ptrdiff_t kDetectionList = 0x2B8;    // HighProcess: the detection entries
+		constexpr std::ptrdiff_t kLocation = 0x64;          // TESObjectREFR::data.location
+
+		// fault-guarded (no C++ objects in this frame): the count written, or -1 when a read faulted
+		int ReadObserversRaw(ObserverRaw* a_out, int a_cap, float a_maxDistance)
+		{
+			__try {
+				auto* player = RE::PlayerCharacter::GetSingleton();
+				if (!player || !player->parentCell) return 0;
+				const auto base = reinterpret_cast<std::uintptr_t>(player);
+				const auto proc = *reinterpret_cast<const std::uintptr_t*>(base + kProcessOffset);
+				if (!proc) return 0;
+				const auto highVt = *reinterpret_cast<const std::uintptr_t*>(proc);
+				struct Node { std::uintptr_t item; const Node* next; };
+				const float* pl = reinterpret_cast<const float*>(base + kLocation);
+				int n = 0, steps = 0;
+				for (auto* node = *reinterpret_cast<const Node* const*>(proc + kDetectionList); node && steps < 96 && n < a_cap; node = node->next, ++steps) {
+					if (!node->item) continue;
+					const auto actor = *reinterpret_cast<const std::uintptr_t*>(node->item);
+					if (!actor || actor == base) continue;
+					const auto ap = *reinterpret_cast<const std::uintptr_t*>(actor + kProcessOffset);
+					if (!ap || *reinterpret_cast<const std::uintptr_t*>(ap) != highVt) continue;
+					const float* al = reinterpret_cast<const float*>(actor + kLocation);
+					const float dx = al[0] - pl[0], dy = al[1] - pl[1];
+					const float dist = std::sqrt(dx * dx + dy * dy);
+					if (!(dist <= a_maxDistance)) continue;
+					int s2 = 0;
+					for (auto* e = *reinterpret_cast<const Node* const*>(ap + kDetectionList); e && s2 < 96; e = e->next, ++s2) {
+						if (e->item && *reinterpret_cast<const std::uintptr_t*>(e->item) == base) {
+							a_out[n].bearing = static_cast<float>(std::atan2(dx, dy) * 180.0 / std::numbers::pi);
+							a_out[n].distance = dist;
+							a_out[n].level = *reinterpret_cast<const std::uint8_t*>(e->item + 0x08);
+							a_out[n].value = *reinterpret_cast<const std::int32_t*>(e->item + 0x10);
+							++n;
+							break;
+						}
+					}
+				}
+				return n;
+			} __except (EXCEPTION_EXECUTE_HANDLER) {
+				return -1;
+			}
+		}
+
+		// the observers, read at most four times a second (hud-mods-limit-per-frame-work): nearest first
+		const std::vector<ObserverRaw>& Observers()
+		{
+			static std::vector<ObserverRaw> cache;
+			static ULONGLONG                at = 0, loggedAt = 0;
+			static bool                     faultLogged = false;
+			const ULONGLONG                 now = GetTickCount64();
+			if (now - at < 250) return cache;
+			at = now;
+			std::array<ObserverRaw, 32> buf{};
+			const int n = ReadObserversRaw(buf.data(), static_cast<int>(buf.size()), 4200.0f);   // ~60 m
+			if (n < 0) {
+				if (!faultLogged) logger::warn("sneak indicator: reading the detection lists faulted; no marks until it reads cleanly");
+				faultLogged = true;
+				cache.clear();
+				return cache;
+			}
+			cache.assign(buf.begin(), buf.begin() + n);
+			std::ranges::sort(cache, {}, &ObserverRaw::distance);
+			if (now - loggedAt >= 5000 && !cache.empty()) {   // the numbers behind the marks, every 5 s while there are any
+				loggedAt = now;
+				std::string s;
+				for (std::size_t i = 0; i < cache.size() && i < 8; ++i) s += std::format(" [bearing {:.0f}, {:.0f} units, level {}, value {}]", cache[i].bearing, cache[i].distance, cache[i].level, cache[i].value);
+				logger::debug("sneak indicator: {} actor(s) with an entry for the player{}", cache.size(), s);
+			}
+			return cache;
+		}
+
+		// the game's own art on the marks, once it is loaded: the soft glow line (damage), the sneak-eye flipbook (sneak)
+		void SetMarkArt(Tracked& a_t, bool a_damage)
+		{
+			if (a_t.artSet || GetTickCount64() - a_t.artTriedAt < 2000) return;
+			a_t.artTriedAt = GetTickCount64();
+			auto* tex = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, a_damage ? L"/Game/Art/UI/Common/T_Line_glow.T_Line_glow"
+			                                                                         : L"/Game/Art/UI/Modern/HUD/Reticle/SneakEye/T_UI_SneakEyeNew_D.T_UI_SneakEyeNew_D");
+			if (!tex) return;   // not loaded yet: asked again in 2 s; the marks stay plain until then
+			for (std::size_t k = 0; k < a_t.marks.size(); ++k) {
+				auto* m = a_t.marks[k];
+				if (!ue::IsLive(m)) continue;
+				ue::Call c(m, L"SetBrushFromTexture");
+				if (!c || !c.At("Texture")) return;
+				c.Set("Texture", tex);
+				if (void* p = c.At("bMatchSize")) *static_cast<bool*>(p) = false;
+				c.Run();
+				SetImageSize(m, a_damage ? 190.0 : 40.0, a_damage ? 34.0 : 20.0);   // the texture must not size the mark
+				a_t.markSize[k] = a_damage ? 20.0f : -1.0f;
+				a_t.markFrame[k] = -1;
+			}
+			a_t.artSet = true;
+			logger::info("hud: the {} marks wear the game's {}", a_damage ? "damage" : "sneak", a_damage ? "T_Line_glow" : "sneak-eye flipbook");
+		}
+
+		// one frame of the 8 x 8 sneak-eye flipbook (0 closed .. 63 open) through the image brush's UV region
+		void SetEyeFrame(UE::UObject* a_img, int a_frame)
+		{
+			static auto* brushStruct = UE::StaticFindObject<UE::UStruct>(nullptr, nullptr, L"/Script/SlateCore.SlateBrush");
+			const auto off = Off(a_img->GetClass(), "Brush");
+			const auto uv = brushStruct ? Off(brushStruct, "UVRegion") : -1;
+			if (off < 0 || uv < 0) return;
+			auto* box = ue::At<std::uint8_t>(a_img, off + uv);
+			if (!box) return;
+			const int   f = std::clamp(a_frame, 0, 63);
+			const float c = static_cast<float>(f % 8) / 8.0f, r = static_cast<float>(f / 8) / 8.0f;
+			const float v[4] = { c, r, c + 0.125f, r + 0.125f };   // Box2f { Min, Max, bIsValid }
+			std::memcpy(box, v, sizeof(v));
+			box[16] = 1;
+		}
 
 		UE::UObject* LiveOf(ue::Handle& a_h, ULONGLONG& a_scanAt, const wchar_t* a_class)
 		{
@@ -1519,16 +1653,21 @@ namespace hud
 		}
 
 		// one mark on the ring: its direction (0 = straight ahead, + clockwise), opacity, colour (0 white .. 1 red) and size
-		void PlaceMark(Tracked& a_t, std::size_t a_k, bool a_damage, float a_angle, float a_op, float a_colour, float a_size)
+		void PlaceMark(Tracked& a_t, std::size_t a_k, bool a_damage, float a_angle, float a_op, float a_colour, float a_size, int a_frame = -1)
 		{
 			auto* m = a_t.marks[a_k];
 			if (!ue::IsLive(m)) return;
-			const float radius = a_damage ? 150.0f : 110.0f;
+			const float radius = a_t.ringRadius > 0.0f ? a_t.ringRadius : (a_damage ? 150.0f : 110.0f);
 			if (a_op > 0.0f && std::abs(a_angle - a_t.markAng[a_k]) > 0.2f) {
 				const double rad = a_angle * std::numbers::pi / 180.0;
 				Call2(m, L"SetRenderTranslation", "Translation", radius * std::sin(rad), -radius * std::cos(rad));
-				SetAngle(m, a_damage ? a_angle : 45.0f);   // an arc lies along the ring; a diamond stays a diamond
+				SetAngle(m, a_damage ? a_angle : 0.0f);   // an arc lies along the ring; an eye stays upright
 				a_t.markAng[a_k] = a_angle;
+			}
+			if (!a_damage && a_frame >= 0 && a_t.artSet && a_frame != a_t.markFrame[a_k]) {
+				SetEyeFrame(m, a_frame);
+				a_t.markFrame[a_k] = a_frame;
+				a_t.markColour[a_k] = -1.0f;   // the tint call below repaints it
 			}
 			if (!a_damage && std::abs(a_colour - a_t.markColour[a_k]) > 0.02f) {
 				// white (hidden) -> yellow (half) -> red (detected)
@@ -1540,7 +1679,7 @@ namespace hud
 				a_t.markColour[a_k] = a_colour;
 			}
 			if (!a_damage && std::abs(a_size - a_t.markSize[a_k]) > 0.5f) {
-				SetImageSize(m, a_size, a_size);
+				SetImageSize(m, a_size * 2.0f, a_size);   // an eye frame is twice as wide as it is tall
 				a_t.markSize[a_k] = a_size;
 			}
 			if (std::abs(a_op - a_t.markOp[a_k]) > 0.01f) {
@@ -1549,17 +1688,24 @@ namespace hud
 			}
 		}
 
-		void UpdateIndicator(UE::UObject* a_w, Tracked& a_t, const elements::Element& a_el, bool a_gameplay, bool a_preview)
+		void UpdateIndicator(UE::UObject* a_w, Tracked& a_t, const elements::Element& a_el, bool a_gameplay, bool a_preview, float a_radius)
 		{
 			(void)a_w;
 			if (a_t.marks.empty()) return;
 			const bool damage = std::string_view(a_el.createNative) == "damage";
+			SetMarkArt(a_t, damage);
+			const float radius = a_radius > 0.0f ? a_radius : settings::DefaultRadius(a_el.createNative);
+			if (std::abs(radius - a_t.ringRadius) > 0.5f) {   // a new radius: every mark is placed again, and the box sized to the ring
+				a_t.ringRadius = radius;
+				std::ranges::fill(a_t.markAng, -999.0f);
+				if (a_t.area && ue::IsLive(a_t.area)) SetImageSize(a_t.area, radius * 2.0 + (damage ? 40.0 : 50.0), radius * 2.0 + (damage ? 40.0 : 50.0));
+			}
 			const ULONGLONG now = GetTickCount64();
 			const IndicatorData d = ReadIndicatorData();
-			std::vector<std::tuple<float, float, float, float>> show;   // (angle, opacity, colour, size)
+			std::vector<std::tuple<float, float, float, float, int>> show;   // (angle, opacity, colour, size, eye frame)
 			if (a_preview) {
-				if (damage) show = { { -60.0f, 0.85f, 1.0f, 20.0f }, { 5.0f, 0.85f, 1.0f, 20.0f }, { 125.0f, 0.85f, 1.0f, 20.0f } };
-				else show = { { -50.0f, 0.9f, 0.1f, 20.0f }, { 30.0f, 0.9f, 0.55f, 20.0f }, { 150.0f, 0.95f, 1.0f, 28.0f } };
+				if (damage) show = { { -60.0f, 0.85f, 1.0f, 20.0f, -1 }, { 5.0f, 0.85f, 1.0f, 20.0f, -1 }, { 125.0f, 0.85f, 1.0f, 20.0f, -1 } };
+				else show = { { -50.0f, 0.7f, 0.0f, 18.0f, 6 }, { 30.0f, 0.9f, 0.55f, 20.0f, 36 }, { 150.0f, 1.0f, 1.0f, 24.0f, 63 } };
 			} else if (damage) {
 				if (d.ok && a_gameplay && a_t.lastHealth >= 0.0f && d.health >= 0.0f && d.health < a_t.lastHealth - 0.002f) {
 					const float drop = a_t.lastHealth - d.health;
@@ -1582,19 +1728,23 @@ namespace hud
 				std::erase_if(a_t.flashes, [&](const IndicatorFlash& f) { return now - f.at >= 1500; });
 				for (const auto& f : a_t.flashes) {
 					const float age = static_cast<float>(now - f.at) / 1500.0f;
-					show.emplace_back(f.angle, f.strength * (1.0f - age), 1.0f, 20.0f);
+					show.emplace_back(f.angle, f.strength * (1.0f - age), 1.0f, 20.0f, -1);
 				}
 			} else if (d.ok && a_gameplay && d.sneaking) {
-				const bool detected = d.detection >= 0.99f;
-				for (const auto& [dist, bearing] : d.hostiles) {
-					if (dist > 4000.0f || show.size() >= a_t.marks.size()) continue;
-					show.emplace_back(RelativeBearing(bearing, d.heading), 0.9f, d.detection, detected ? 28.0f : 20.0f);
+				// every actor with an entry for the player, in its direction: unseen - a closed white eye; noticed - half open,
+				// amber; seen (detected) - open, red and larger. Lost (0) is not drawn.
+				for (const auto& o : Observers()) {
+					if (o.level <= 0 || show.size() >= a_t.marks.size()) continue;
+					const float rel = RelativeBearing(o.bearing, d.heading);
+					if (o.level >= 3) show.emplace_back(rel, 1.0f, 1.0f, 24.0f, 63);
+					else if (o.level == 2) show.emplace_back(rel, 0.95f, 0.55f, 20.0f, 36);
+					else show.emplace_back(rel, 0.7f, 0.0f, 18.0f, 6);
 				}
 			}
 			for (std::size_t k = 0; k < a_t.marks.size(); ++k) {
 				if (k < show.size()) {
-					const auto& [ang, op, col, size] = show[k];
-					PlaceMark(a_t, k, damage, ang, op, col, size);
+					const auto& [ang, op, col, size, frame] = show[k];
+					PlaceMark(a_t, k, damage, ang, op, col, size, frame);
 				} else {
 					PlaceMark(a_t, k, damage, a_t.markAng[k], 0.0f, a_t.markColour[k], a_t.markSize[k]);
 				}
@@ -1833,7 +1983,7 @@ namespace hud
 					t.forced = false;
 				}
 
-				if (all[i].createNative) UpdateIndicator(w, t, all[i], a_gameplay && !hide, a_s.preview && a_s.enabled && !hide);
+				if (all[i].createNative) UpdateIndicator(w, t, all[i], a_gameplay && !hide, a_s.preview && a_s.enabled && !hide, a_s.elements[i].radius);
 				st.found = true;
 				st.widget = t.name;
 				st.baseX = t.baseX;

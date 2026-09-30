@@ -220,6 +220,15 @@ namespace page
 			if (held.y) { minY = held.minY; maxY = held.maxY; } else { held.minY = minY; held.maxY = maxY; }
 			e.x = std::clamp(e.x, static_cast<float>(minX), static_cast<float>(maxX));
 			e.y = std::clamp(e.y, static_cast<float>(minY), static_cast<float>(maxY));
+			if (el.createNative) {   // the two indicators: a ring about the screen's centre - its radius first
+				int r = static_cast<int>(std::lround(e.radius));
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				if (StepSlider((std::string(TR("HPM_Radius", "Radius")) + id + "r").c_str(), &r, static_cast<int>(settings::kRadiusMin), static_cast<int>(settings::kRadiusMax))) {
+					e.radius = static_cast<float>(r);
+					changed = true;
+				}
+				Hint(TR("HPM_RadiusHint", "How far from the centre of the screen the marks sit, in pixels. Move and Size below shift and scale the whole ring."));
+			}
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
 			changed |= PercentSlider((std::string(TR("HPM_MoveX", "Move left / right")) + id + "x").c_str(), &e.x, minX, maxX);
 			held.x = ImGui::IsItemActive();

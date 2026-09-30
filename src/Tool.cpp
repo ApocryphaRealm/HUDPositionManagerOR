@@ -23,7 +23,7 @@ namespace tool
 			for (std::size_t i = 0; i < elements::Count(); ++i) {
 				const auto& e = v.elements[i];
 				els[elements::All()[i].key] = { { "x", e.x }, { "y", e.y }, { "scale", e.scale }, { "length", e.stretchX }, { "height", e.stretchY }, { "hide", e.hide }, { "alwaysVisible", e.alwaysVisible },
-					{ "moveWith", e.moveWith }, { "fill", e.fill }, { "linkLength", e.linkLength }, { "pointsPerLength", e.pointsPerLength }, { "grow", e.grow } };
+					{ "moveWith", e.moveWith }, { "fill", e.fill }, { "linkLength", e.linkLength }, { "pointsPerLength", e.pointsPerLength }, { "grow", e.grow }, { "radius", e.radius } };
 			}
 			std::string members;
 			for (const auto& m : v.group.members) members += (members.empty() ? "" : ",") + m;
@@ -72,8 +72,8 @@ namespace tool
 			bool ok = true;
 			settings::Update([&](settings::Values& s) {
 				auto& e = s.elements[static_cast<std::size_t>(i)];
-				if ((key == "x" || key == "y" || key == "scale" || key == "length" || key == "height" || key == "pointsPerLength") && val.is_number()) {
-					(key == "x" ? e.x : key == "y" ? e.y : key == "scale" ? e.scale : key == "length" ? e.stretchX : key == "height" ? e.stretchY : e.pointsPerLength) = val.get<float>();
+				if ((key == "x" || key == "y" || key == "scale" || key == "length" || key == "height" || key == "pointsPerLength" || key == "radius") && val.is_number()) {
+					(key == "x" ? e.x : key == "y" ? e.y : key == "scale" ? e.scale : key == "length" ? e.stretchX : key == "height" ? e.stretchY : key == "radius" ? e.radius : e.pointsPerLength) = val.get<float>();
 				} else if (key == "fill" && val.is_number()) {
 					e.fill = val.get<int>();
 				} else if (key == "grow" && val.is_number()) {
@@ -86,7 +86,7 @@ namespace tool
 					ok = false;
 				}
 			});
-			return ok ? std::string() : "element keys: x, y, scale, length, height, pointsPerLength, fill, grow (number), hide, alwaysVisible, linkLength (bool), moveWith (element key or \"\")";
+			return ok ? std::string() : "element keys: x, y, scale, length, height, pointsPerLength, radius, fill, grow (number), hide, alwaysVisible, linkLength (bool), moveWith (element key or \"\")";
 		}
 
 		void Tool(void*, const char* a_args, void* a_sink, TestBenchAPI::WriteFn a_write)

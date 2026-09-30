@@ -9,6 +9,10 @@
 
 namespace settings
 {
+	// the indicators' ring (fRadius), pixels
+	inline constexpr float kRadiusMin = 40.0f, kRadiusMax = 500.0f;
+	inline float DefaultRadius(std::string_view a_native) { return a_native == "damage" ? 150.0f : 110.0f; }
+
 	struct Element
 	{
 		float       x = 0.0f;              // [<key>] fX - right is positive, a PERCENTAGE of the screen's width (-100..100)
@@ -24,6 +28,8 @@ namespace settings
 		bool        linkLength = false;    // [<key>] bLinkLength - the bar's length follows the player's maximum of that resource
 		float       pointsPerLength = 100.0f;   // [<key>] fPointsPerLength - the maximum that makes the bar 1.00x long
 		int         grow = 0;              // [<key>] iGrow - 0 both sides, 1 toward the right (anchored left), 2 toward the left
+		// the two indicators this mod builds (2026-09-30): the ring's radius in pixels (0 = the indicator's own default)
+		float       radius = 0.0f;         // [<key>] fRadius
 	};
 
 	// the Combined widgets tab (2026-09-29): any set of elements moves as one on shared sliders, on top of each one's own
