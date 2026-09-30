@@ -71,7 +71,7 @@ NEW = {
     "HPM_El_Subtitles": ["Subtitles and notifications", "字幕と通知", "자막과 알림", "字幕与通知", "Субтитры и уведомления", "Untertitel und Meldungen", "Sous-titres et notifications", "Subtítulos y notificaciones", "Sottotitoli e notifiche", "Napisy i powiadomienia", "Titulky a oznámení"],
     "HPM_El_Breath": ["Breath meter", "息メーター", "숨 게이지", "屏息计量条", "Индикатор дыхания", "Atemanzeige", "Jauge de souffle", "Indicador de aire", "Indicatore del respiro", "Wskaźnik oddechu", "Ukazatel dechu"],
     "HPM_El_Location": ["Location name", "場所の名前", "지역 이름", "地点名称", "Название места", "Ortsname", "Nom du lieu", "Nombre del lugar", "Nome del luogo", "Nazwa miejsca", "Název místa"],
-    "HPM_El_DamageIndicators": ["Damage direction", "ダメージの方向", "피해 방향", "伤害方向", "Направление урона", "Schadensrichtung", "Direction des dégâts", "Dirección del daño", "Direzione del danno", "Kierunek obrażeń", "Směr poškození"],
+    "HPM_El_DamageIndicators": ["Damage direction and warning icons", "ダメージの方向と警告アイコン", "피해 방향과 경고 아이콘", "伤害方向与警告图标", "Направление урона и значки предупреждений", "Schadensrichtung und Warnsymbole", "Direction des dégâts et icônes d'alerte", "Dirección del daño e iconos de aviso", "Direzione del danno e icone di avviso", "Kierunek obrażeń i ikony ostrzeżeń", "Směr poškození a varovné ikony"],
     "HPM_El_Notifications": ["Pop-up notifications", "ポップアップ通知", "팝업 알림", "弹出通知", "Всплывающие уведомления", "Einblendmeldungen", "Notifications contextuelles", "Notificaciones emergentes", "Notifiche a comparsa", "Powiadomienia wyskakujące", "Vyskakovací oznámení"],
     "HPM_El_Tutorial": ["Tutorial messages", "チュートリアルメッセージ", "튜토리얼 메시지", "教程提示", "Сообщения обучения", "Tutorial-Meldungen", "Messages du tutoriel", "Mensajes del tutorial", "Messaggi del tutorial", "Komunikaty samouczka", "Zprávy výuky"],
     "HPM_AlwaysOne": ["Always visible", "常に表示", "항상 표시", "始终显示", "Всегда видно", "Immer sichtbar", "Toujours visible", "Siempre visible", "Sempre visibile", "Zawsze widoczne", "Vždy viditelné"],
@@ -845,6 +845,71 @@ NEW = {
         "Punkty na pełną długość",
         "Body na plnou délku",
     ],
+    "HPM_GrowSide": [
+        "Grows toward",
+        "伸びる方向",
+        "늘어나는 방향",
+        "增长方向",
+        "Растёт в сторону",
+        "Wächst nach",
+        "S'allonge vers",
+        "Crece hacia",
+        "Cresce verso",
+        "Rośnie w stronę",
+        "Roste směrem",
+    ],
+    "HPM_GrowBoth": [
+        "Both sides",
+        "両側",
+        "양쪽",
+        "两侧",
+        "В обе стороны",
+        "Beide Seiten",
+        "Les deux côtés",
+        "Ambos lados",
+        "Entrambi i lati",
+        "Obie strony",
+        "Obě strany",
+    ],
+    "HPM_GrowRight": [
+        "The right",
+        "右",
+        "오른쪽",
+        "右侧",
+        "Вправо",
+        "Rechts",
+        "La droite",
+        "La derecha",
+        "La destra",
+        "W prawo",
+        "Doprava",
+    ],
+    "HPM_GrowLeft": [
+        "The left",
+        "左",
+        "왼쪽",
+        "左侧",
+        "Влево",
+        "Links",
+        "La gauche",
+        "La izquierda",
+        "La sinistra",
+        "W lewo",
+        "Doleva",
+    ],
+    "HPM_GrowHint": [
+        "Which way the bar gets longer or shorter: from its centre, or anchored on one end so it grows toward the other.",
+        "バーが伸縮する方向です。中央から、または片端を固定してもう一方へ伸びます。",
+        "막대가 길어지거나 짧아지는 방향입니다. 가운데에서, 또는 한쪽 끝을 고정하고 반대쪽으로 늘어납니다.",
+        "条变长或变短的方向：从中间，或固定一端向另一端增长。",
+        "Куда полоса удлиняется или укорачивается: от центра, или закреплённая одним концом - к другому.",
+        "In welche Richtung die Leiste länger oder kürzer wird: von der Mitte aus, oder an einem Ende verankert zum anderen hin.",
+        "Dans quel sens la barre s'allonge ou se raccourcit : depuis son centre, ou ancrée à un bout vers l'autre.",
+        "Hacia dónde se alarga o acorta la barra: desde su centro, o anclada en un extremo hacia el otro.",
+        "In che direzione la barra si allunga o si accorcia: dal centro, o ancorata a un'estremità verso l'altra.",
+        "W którą stronę pasek się wydłuża lub skraca: od środka, albo zakotwiczony na jednym końcu w stronę drugiego.",
+        "Kterým směrem se lišta prodlužuje nebo zkracuje: od středu, nebo ukotvená na jednom konci směrem k druhému.",
+    ],
 }
 
 
@@ -927,7 +992,7 @@ for key, fades, bar, stat in ELEMENTS:
         ini.append("iFill=0")
     if stat:
         ini.append("; Length follows the resource: 1 = the bar's length grows with your maximum; it is 1.00x long at fPointsPerLength points.")
-        ini += ["bLinkLength=0", "fPointsPerLength=100"]
+        ini += ["bLinkLength=0", "fPointsPerLength=100", "; Grows toward: 0 = both sides (about the centre), 1 = the right (anchored left), 2 = the left (anchored right).", "iGrow=0"]
     ini.append("")
 ini += ["[Group]", "; Combined widgets: the elements (section names, comma-separated) that move as one on the shared sliders, and that shared offset.", "sMembers=", "fX=0", "fY=0", ""]
 ini += ["[Log]", "; 0 = trace ... 6 = off. Shipped at 2 (info).", "uLogLevel=2", ""]

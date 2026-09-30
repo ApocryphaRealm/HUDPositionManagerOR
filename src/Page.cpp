@@ -215,7 +215,7 @@ namespace page
 			if (k == "Subtitles") return TR("HPM_El_Subtitles", "Subtitles and notifications");
 			if (k == "Breath") return TR("HPM_El_Breath", "Breath meter");
 			if (k == "Location") return TR("HPM_El_Location", "Location name");
-			if (k == "DamageIndicators") return TR("HPM_El_DamageIndicators", "Damage direction");
+			if (k == "DamageIndicators") return TR("HPM_El_DamageIndicators", "Damage direction and warning icons");
 			if (k == "Notifications") return TR("HPM_El_Notifications", "Pop-up notifications");
 			if (k == "Tutorial") return TR("HPM_El_Tutorial", "Tutorial messages");
 			if (k == "QuickWheel") return TR("HPM_El_QuickWheel", "Quick wheel");
@@ -395,6 +395,10 @@ namespace page
 				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
 				if (ImGui::Combo((std::string(TR("HPM_FillFrom", "Fill from")) + id + "f").c_str(), &e.fill, fills, 4)) ch = true;
 				if (el.stat) {
+					const char* grows[3]{ TR("HPM_GrowBoth", "Both sides"), TR("HPM_GrowRight", "The right"), TR("HPM_GrowLeft", "The left") };
+					ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+					if (ImGui::Combo((std::string(TR("HPM_GrowSide", "Grows toward")) + id + "g").c_str(), &e.grow, grows, 3)) ch = true;
+					Hint(TR("HPM_GrowHint", "Which way the bar gets longer or shorter: from its centre, or anchored on one end so it grows toward the other."));
 					ch |= Switch((std::string(TR("HPM_LinkLength", "Length follows the resource")) + id + "l").c_str(), &e.linkLength);
 					if (e.linkLength) {
 						Hint(TR("HPM_LinkLengthHint", "The bar grows with your maximum: it is 1.00x long at the points below, longer above them."));

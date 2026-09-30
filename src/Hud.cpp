@@ -64,6 +64,13 @@ namespace hud
 			UE::UObject* fillMid = nullptr;
 			int          fillApplied = 0;
 			ULONGLONG    fillCheckedAt = 0;
+			// the hold's calls (holdOn) run again when the retainer veil the game fades drops (the enemy bar, 2026-09-29)
+			ULONGLONG    holdCalledAt = 0, veilCheckedAt = 0;
+			UE::UObject* veilNear = nullptr;   // the nearest retainer box's material (above or below the element), looked up once
+			bool         veilLooked = false;
+			float        veilNow = 1.0f;
+			double       pivotAppliedX = 0.5;
+			float        shownProgress = -1.0f;   // the level gauge's bar
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
 			bool        havePadBase = false, padWrote = false;
 			float       basePad[4]{}, lastPad[4]{};
@@ -74,6 +81,8 @@ namespace hud
 
 		std::vector<Tracked> g_el(elements::Count());
 		void SetVisibility(UE::UObject* a_w, std::uint8_t a_v);   // defined below; ReleaseHold uses them first
+		UE::UObject* DynamicMaterial(UE::UObject* a_image);         // defined below (the fill); the level gauge uses it first
+		int HoldSubtreeVisible(UE::UObject* a_widget, int a_depth, bool& a_stoppedFade, Tracked* a_t = nullptr);
 		void SetOpacity(UE::UObject* a_w, float a_o);
 		ue::Handle           g_layout;
 
@@ -306,12 +315,51 @@ namespace hud
 			return found;
 		}
 
-		// the text an element of this mod's own shows: the player's level
-		void SetLevelText(UE::UObject* a_w, Tracked& a_t)
+		// The Level element: the game's own level-up gauge (WBP_ModernHud_LevelUpGauge_C) made by this mod. Its PlayerLevelText
+		// rich text gets the player's level, its AltarProgressBar image's material the progress to the next level (from the
+		// HUD's view model, SkillProgression.PlayerLevelProgress), at most once a second and only when either changed.
+		float LevelProgress()
+		{
+			static ue::Handle vm;
+			static ULONGLONG  scanAt = 0;
+			auto* v = vm.Get();
+			if (!v && GetTickCount64() - scanAt >= 5000) {
+				scanAt = GetTickCount64();
+				v = ue::FirstOf(ue::Class(L"/Script/Altar.VHUDMainViewModel"));
+				vm.Set(v);
+			}
+			if (!v) return -1.0f;
+			static auto* st = UE::StaticFindObject<UE::UStruct>(nullptr, nullptr, L"/Script/Altar.ModernSkillProgression");
+			const auto off = Off(v->GetClass(), "SkillProgression");
+			const auto inner = st ? Off(st, "PlayerLevelProgress") : -1;
+			if (off < 0 || inner < 0) {
+				static bool warned = false;
+				if (!warned) { warned = true; logger::warn("hud: the level progress is not readable (SkillProgression at {}, PlayerLevelProgress at {}) - the level gauge's bar stays as it is", off, inner); }
+				return -1.0f;
+			}
+			const float* p = ue::At<float>(v, off + inner);
+			return p ? std::clamp(*p, 0.0f, 1.0f) : -1.0f;
+		}
+
+		void SetLevelGauge(UE::UObject* a_w, Tracked& a_t)
 		{
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			const int level = player ? static_cast<int>(player->GetLevel()) : 0;
+			const float progress = LevelProgress();
+			if (auto* bar = ObjProp(a_w, "AltarProgressBar"); bar && progress >= 0.0f && std::abs(progress - a_t.shownProgress) > 0.004f) {
+				if (auto* mid = DynamicMaterial(bar)) {
+					for (const wchar_t* name : { L"Progress", L"OldProgress", L"AnimatedProgress", L"DelayedAnimatedProgress" }) {
+						ue::Call set(mid, L"SetScalarParameterValue");
+						if (!set || !set.At("ParameterName")) break;
+						new (set.At("ParameterName")) UE::FName(name, UE::EFindName::Add);
+						set.Set<float>("Value", progress);
+						set.Run();
+					}
+					a_t.shownProgress = progress;
+				}
+			}
 			if (level == a_t.shownLevel) return;
+			if (auto* text = ObjProp(a_w, "PlayerLevelText")) a_w = text;   // the gauge's level number; a plain text block otherwise
 			static UE::UObject* textLib = nullptr;
 			if (!textLib) {
 				auto* cls = UE::StaticFindObject<UE::UClass>(nullptr, nullptr, L"/Script/Engine.KismetTextLibrary");
@@ -323,8 +371,7 @@ namespace hud
 			void* ret = conv ? conv.At("ReturnValue") : nullptr;
 			void* out = set ? set.At("InText") : nullptr;
 			if (!in || !ret || !out) return;
-			std::string text = strings::Get("HPM_LevelText", "Level {}");
-			if (const auto pos = text.find("{}"); pos != std::string::npos) text.replace(pos, 2, std::to_string(level));
+			std::string text = std::to_string(level);   // the gauge's own "Lvl" label stands before it
 			new (in) UE::FString(ue::Widen(text).c_str());
 			conv.Run();
 			std::memcpy(out, ret, 24);
@@ -362,7 +409,15 @@ namespace hud
 			}
 			SetVisibility(w, kSelfHitTestInvisible);
 			a_t.created = true;
-			SetLevelText(w, a_t);
+			// the level-up gauge as a level display: no skill text, no level-up icon, its row at full opacity
+			if (auto* info = ObjProp(w, "InfoText")) SetVisibility(info, kCollapsed);
+			{
+				ue::Call icon(w, L"ToggleLevelUpIconVisibility");
+				if (icon && icon.At("Visible")) { icon.Set<bool>("Visible", false); icon.Run(); }
+			}
+			bool stopped = false;
+			HoldSubtreeVisible(w, 0, stopped);
+			SetLevelGauge(w, a_t);
 			logger::info("hud: {} created from {} on the layout's {}", a_el.key, a_el.createClass, ue::NameOf(root->GetClass()));
 			return w;
 		}
@@ -501,6 +556,13 @@ namespace hud
 			}
 			for (const auto& call : a_calls) {
 				UE::UObject* target = a_w;
+				if (call.innerProp) {   // a widget the element names in one of its object properties
+					target = ObjProp(a_w, call.innerProp);
+					if (!target) {
+						logger::debug("preview: {} has no {}", a_key, call.innerProp);
+						continue;
+					}
+				}
 				if (call.outerClass) {   // the nearest outer user widget of that class (the element's owner)
 					target = nullptr;
 					for (UE::UObject* o = a_w ? a_w->GetOuter() : nullptr; o && !target; o = o->GetOuter()) {
@@ -668,6 +730,54 @@ namespace hud
 			}
 		}
 
+		// the nearest retainer box's material veil (an ancestor, or a descendant for the top-stats block whose retainer
+		// holds the enemy bar), found once; its Opacity parameter read at most twice a second - 1 when there is none
+		UE::UObject* FindRetainerMaterial(UE::UObject* a_w, int a_depth = 0)
+		{
+			if (!a_w || a_depth > 6) return nullptr;
+			auto* cls = a_w->GetClass();
+			if (ue::NameOf(cls) == "AnimatableRetainerBox") return ObjProp(a_w, "EffectMaterial");
+			if (UserWidgetClass() && cls->IsChildOf(UserWidgetClass())) {
+				if (auto* m = FindRetainerMaterial(ObjProp(ObjProp(a_w, "WidgetTree"), "RootWidget"), a_depth + 1)) return m;
+			}
+			if (PanelClass() && cls->IsChildOf(PanelClass())) {
+				auto* slots = ue::At<RawArray>(a_w, Off(cls, "Slots"));
+				for (std::int32_t i = 0; slots && slots->data && i < slots->num && i < 64; ++i) {
+					if (auto* m = FindRetainerMaterial(ObjProp(slots->data[i], "Content"), a_depth + 1)) return m;
+				}
+			} else if (Off(cls, "Content") >= 0) {
+				if (auto* m = FindRetainerMaterial(ObjProp(a_w, "Content"), a_depth + 1)) return m;
+			}
+			return nullptr;
+		}
+
+		float VeilOpacity(UE::UObject* a_w, Tracked& a_t)
+		{
+			const ULONGLONG now = GetTickCount64();
+			if (!a_t.veilLooked) {
+				a_t.veilLooked = true;
+				a_t.veilNear = FindRetainerMaterial(a_w);
+				for (UE::UObject* cur = a_w; !a_t.veilNear && cur;) {   // or above
+					auto* slot = ObjProp(cur, "Slot");
+					auto* parent = slot ? ObjProp(slot, "Parent") : nullptr;
+					if (parent && ue::NameOf(parent->GetClass()) == "AnimatableRetainerBox") a_t.veilNear = ObjProp(parent, "EffectMaterial");
+					cur = parent;
+				}
+			}
+			if (!a_t.veilNear) return 1.0f;
+			if (now - a_t.veilCheckedAt >= 500) {
+				a_t.veilCheckedAt = now;
+				if (!ue::IsLive(a_t.veilNear)) { a_t.veilNear = nullptr; return 1.0f; }
+				ue::Call get(a_t.veilNear, L"K2_GetScalarParameterValue");
+				if (get && get.At("ParameterName")) {
+					new (get.At("ParameterName")) UE::FName(L"Opacity", UE::EFindName::Add);
+					get.Run();
+					if (const auto* v = static_cast<const float*>(get.At("ReturnValue"))) a_t.veilNow = *v;
+				}
+			}
+			return a_t.veilNow;
+		}
+
 		void LowerVeil(Tracked& a_t)
 		{
 			if (!a_t.veiled) return;
@@ -710,7 +820,7 @@ namespace hud
 		// element's subtree is walked (a bar is three widgets): every user widget carrying a FadeOut animation has it
 		// stopped while it plays, and every widget under it whose opacity fell is put back to 1. Returns how many
 		// widgets were held up this frame.
-		int HoldSubtreeVisible(UE::UObject* a_widget, int a_depth, bool& a_stoppedFade, Tracked* a_t = nullptr)
+		int HoldSubtreeVisible(UE::UObject* a_widget, int a_depth, bool& a_stoppedFade, Tracked* a_t)
 		{
 			if (!a_widget || a_depth > 8) {
 				return 0;
@@ -1153,9 +1263,9 @@ namespace hud
 					continue;
 				}
 				const auto& e = a_s.elements[i];
-				if (t.created && GetTickCount64() - t.levelCheckedAt >= 1000) {   // this mod's own level text follows the player's level
+				if (t.created && GetTickCount64() - t.levelCheckedAt >= 1000) {   // this mod's own level gauge follows the player
 					t.levelCheckedAt = GetTickCount64();
-					SetLevelText(w, t);
+					SetLevelGauge(w, t);
 				}
 				Transform   now;
 				if (!ReadTransform(w, now)) {
@@ -1226,13 +1336,18 @@ namespace hud
 				}
 				const double wantX = t.baseX + ox, wantY = t.baseY + oy, wantSX = t.baseSX * scaleX, wantSY = t.baseSY * scaleY;
 				const bool   atBase = ox == 0.0 && oy == 0.0 && scaleX == 1.0 && scaleY == 1.0;
-				if (!atBase && !t.pivotSet) {
-					// grow and shrink about the element's own centre, as the Skyrim mod does
-					if (const auto* pv = ue::At<double>(w, Off(WidgetClass(), "RenderTransformPivot"))) {
-						t.pivotX = pv[0];
-						t.pivotY = pv[1];
+				// grow and shrink about the element's own centre, as the Skyrim mod does - or, for a resource bar, about one
+				// end ("Grows toward": the bar anchored on the other side, the owner 2026-09-29)
+				const double pivotWantX = all[i].stat && e.grow == 1 ? 0.0 : all[i].stat && e.grow == 2 ? 1.0 : 0.5;
+				if (!atBase && (!t.pivotSet || t.pivotAppliedX != pivotWantX)) {
+					if (!t.pivotSet) {
+						if (const auto* pv = ue::At<double>(w, Off(WidgetClass(), "RenderTransformPivot"))) {
+							t.pivotX = pv[0];
+							t.pivotY = pv[1];
+						}
 					}
-					Call2(w, L"SetRenderTransformPivot", "Pivot", 0.5, 0.5);
+					Call2(w, L"SetRenderTransformPivot", "Pivot", pivotWantX, 0.5);
+					t.pivotAppliedX = pivotWantX;
 					t.pivotSet = true;
 				}
 				if (std::abs(now.x - wantX) > eps || std::abs(now.y - wantY) > eps) {
@@ -1282,7 +1397,11 @@ namespace hud
 						t.held = true;
 						t.visBeforeHold = Visibility(w);
 						t.opacityBeforeHold = Opacity(w);
-						if (!preview && !all[i].holdOn.empty()) RunPreviewCalls(w, all[i].holdOn, all[i].key);   // e.g. the breath bar filled
+						if (!preview && !all[i].holdOn.empty()) { t.holdCalledAt = GetTickCount64(); RunPreviewCalls(w, all[i].holdOn, all[i].key); }   // e.g. the breath bar filled
+					}
+					if (always && !preview && !all[i].holdOn.empty() && GetTickCount64() - t.holdCalledAt >= 2000 && VeilOpacity(w, t) < 0.5f) {
+						t.holdCalledAt = GetTickCount64();   // the game faded its retainer veil again (the enemy bar): shown again
+						RunPreviewCalls(w, all[i].holdOn, all[i].key);
 					}
 					if (const auto v = Visibility(w); v == kHidden || v == kCollapsed) SetVisibility(w, kSelfHitTestInvisible);
 					if (Opacity(w) < 0.999f) SetOpacity(w, 1.0f);
@@ -1300,7 +1419,7 @@ namespace hud
 							// the widget since (its own timers), at most every two seconds - a call a second replayed every
 							// appear animation (the owner, 2026-09-29)
 							const ULONGLONG nowMs = GetTickCount64();
-							const bool hiddenAgain = t.previewCalledAt != 0 && (Visibility(w) == kHidden || Visibility(w) == kCollapsed || Opacity(w) < 0.5f);
+							const bool hiddenAgain = t.previewCalledAt != 0 && (Visibility(w) == kHidden || Visibility(w) == kCollapsed || Opacity(w) < 0.5f || VeilOpacity(w, t) < 0.5f);
 							if (t.previewCalledAt == 0 || (hiddenAgain && nowMs - t.previewCalledAt >= 2000)) {
 								if (t.mutedSounds.empty()) {
 									MuteSounds(w, t);
@@ -1315,7 +1434,7 @@ namespace hud
 						t.previewCalledAt = 0;
 						LowerVeil(t);
 						if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);
-						if (!all[i].holdOn.empty()) RunPreviewCalls(w, all[i].holdOn, all[i].key);
+						if (!all[i].holdOn.empty()) { t.holdCalledAt = GetTickCount64(); RunPreviewCalls(w, all[i].holdOn, all[i].key); }
 						UnmuteSounds(t);
 					}
 				} else if (t.held) {
@@ -1326,6 +1445,7 @@ namespace hud
 						if (!all[i].previewOff.empty()) RunPreviewCalls(w, all[i].previewOff, all[i].key);   // the game's own state again
 						LowerVeil(t);
 					}
+					if (t.forced && !all[i].holdOff.empty()) RunPreviewCalls(w, all[i].holdOff, all[i].key);   // the game's own fade again
 					ReleaseHold(w, t);
 					UnmuteSounds(t);   // after the off calls, so those are silent too
 					if (t.forced) logger::info("hud: {} back to the game's own showing and hiding", all[i].key);

@@ -67,6 +67,7 @@ namespace settings
 				if (all[i].stat) {
 					out.emplace_back(s + ".bLinkLength", e.linkLength ? "1" : "0");
 					out.emplace_back(s + ".fPointsPerLength", std::format("{:.0f}", e.pointsPerLength));
+					out.emplace_back(s + ".iGrow", std::to_string(e.grow));
 				}
 			}
 			std::string members;
@@ -97,6 +98,7 @@ namespace settings
 				e.fill = elements::All()[i].bar ? std::clamp(e.fill, 0, 3) : 0;
 				if (!elements::All()[i].stat) e.linkLength = false;
 				e.pointsPerLength = std::clamp(e.pointsPerLength, kPointsMin, kPointsMax);
+				e.grow = elements::All()[i].stat ? std::clamp(e.grow, 0, 2) : 0;
 			}
 			// the group: known elements, each once
 			std::vector<std::string> members;
@@ -208,6 +210,7 @@ namespace settings
 				if (const auto* s = Get(a_e, k + ".iFill")) e.fill = std::atoi(s->c_str());
 				if (const auto* s = Get(a_e, k + ".bLinkLength")) e.linkLength = Flag(*s);
 				if (const auto* s = Get(a_e, k + ".fPointsPerLength")) e.pointsPerLength = static_cast<float>(std::atof(s->c_str()));
+				if (const auto* s = Get(a_e, k + ".iGrow")) e.grow = std::atoi(s->c_str());
 				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.stretchX != 1.0f || e.stretchY != 1.0f || e.hide || e.fill != 0) ? 1 : 0;
 			}
 			if (const auto* s = Get(a_e, "Group.sMembers")) {

@@ -23,6 +23,7 @@ namespace settings
 		int         fill = 0;              // [<key>] iFill
 		bool        linkLength = false;    // [<key>] bLinkLength - the bar's length follows the player's maximum of that resource
 		float       pointsPerLength = 100.0f;   // [<key>] fPointsPerLength - the maximum that makes the bar 1.00x long
+		int         grow = 0;              // [<key>] iGrow - 0 both sides, 1 toward the right (anchored left), 2 toward the left
 	};
 
 	// the Combined widgets tab (2026-09-29): any set of elements moves as one on shared sliders, on top of each one's own
