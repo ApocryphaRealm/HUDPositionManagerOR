@@ -6,6 +6,9 @@ once a build is seen working in game (rule 48); until then the work sits under U
 ## Unreleased - 2026-09-29 - untested, never run
 
 ### Added
+- the Equipped widget's third icon, the Apparel chest piece (armour about to break), in the preview and the
+  Always-visible hold (UpdateApparelDamageVisibility with a ModernApparelData struct; a struct's bool field is now a
+  preview argument, ArgBoolAt) - it showed only in combat (the owner, 2026-09-30).
 - the owner, 2026-09-29: "port the hud position manager mod over to oblivion remaster and i want it to also have
   toggles for setting the hud to active and visible at all times or defer to the games settings". Plan and research:
   4. plans\hud-position-manager-oblivion\ (PLAN.md, RESEARCH.md).

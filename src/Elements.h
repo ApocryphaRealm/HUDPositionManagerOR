@@ -23,6 +23,7 @@ namespace elements
 		const char*    english = nullptr;
 		std::vector<const wchar_t*> objects;   // kObjects: object paths (StaticFindObject) into a TArray<UObject*>
 		std::vector<double>         doubles;   // kDoubles: into a TArray<double> (a Blueprint float array)
+		std::size_t                 at = 0;    // kBool: the byte inside the parameter (a bool field of a struct parameter)
 	};
 	struct PreviewCall
 	{
@@ -36,6 +37,8 @@ namespace elements
 		const char*             innerProp = nullptr;
 	};
 	inline PreviewArg ArgBool(const char* a_n, bool a_b) { return { a_n, PreviewArg::kBool, a_b }; }
+	// a bool FIELD of a struct parameter, at its byte offset (ModernApparelData's two bools, 2026-09-30)
+	inline PreviewArg ArgBoolAt(const char* a_n, std::size_t a_at, bool a_b) { PreviewArg a{ a_n, PreviewArg::kBool, a_b }; a.at = a_at; return a; }
 	inline PreviewArg ArgDouble(const char* a_n, double a_d) { return { a_n, PreviewArg::kDouble, false, a_d }; }
 	inline PreviewArg ArgText(const char* a_n, const char* a_key, const char* a_en) { return { a_n, PreviewArg::kText, false, 0.0, a_key, a_en }; }
 	inline PreviewArg ArgObjects(const char* a_n, std::vector<const wchar_t*> a_paths) { PreviewArg a{ a_n, PreviewArg::kObjects }; a.objects = std::move(a_paths); return a; }
@@ -149,12 +152,20 @@ namespace elements
 			{ .key = "Location", .english = "Location name", .classes = { L"WBP_ModernHud_Area_C" }, .names = { "WBP_ModernHud_Area", "Area" },
 				.previewOn = { { L"DisplayArea", { ArgText("AreaName", "HPM_PreviewArea", "Area name") } }, { L"Update Visibility", { ArgBool("Visible", true), ArgBool("Area Discovered", true) } } },
 				.previewOff = { { L"Update Visibility", { ArgBool("Visible", false), ArgBool("Area Discovered", false) } } } },
-			// Always visible (the owner, 2026-09-29) keeps its warning icons shown through the same calls as the preview
+			// Always visible (the owner, 2026-09-29) keeps its warning icons shown through the same calls as the preview. Three
+			// icons: the weapon, over-encumbered and the Apparel chest piece (armour about to break - the owner, 2026-09-30: it
+			// showed only in combat, because neither the preview nor the hold raised it). UpdateApparelDamageVisibility takes a
+			// ModernApparelData {bIsApparelAboutToBreak @0, bIsApparelBroken @1}.
 			{ .key = "DamageIndicators", .english = "Equipped", .classes = { L"WBP_ModernHud_DamageIndicators_C" }, .names = { "DamageIndicators" }, .fades = true,
-				.previewOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
-				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } },
-				.holdOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
-				.holdOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } }, .holdCheck = { "Weapon", "Overencumbered" }, .holdSubtree = false },
+				.previewOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } },
+					{ L"UpdateApparelDamageVisibility", { ArgBoolAt("InApparelData", 0, true), ArgBoolAt("InApparelData", 1, false) } } },
+				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } },
+					{ L"UpdateApparelDamageVisibility", { ArgBoolAt("InApparelData", 0, false), ArgBoolAt("InApparelData", 1, false) } } },
+				.holdOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } },
+					{ L"UpdateApparelDamageVisibility", { ArgBoolAt("InApparelData", 0, true), ArgBoolAt("InApparelData", 1, false) } } },
+				.holdOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } },
+					{ L"UpdateApparelDamageVisibility", { ArgBoolAt("InApparelData", 0, false), ArgBoolAt("InApparelData", 1, false) } } },
+				.holdCheck = { "Weapon", "Overencumbered", "Apparel" }, .holdSubtree = false },
 			// built by this mod (the game has no such widget): red arcs toward whoever hit you
 			{ .key = "DamageDirection", .english = "Damage direction indicator", .classes = { L"HPM_DamageDirection" }, .names = { "HPM_DamageDirection" }, .holdSubtree = false, .createNative = "damage" },
 			{ .key = "Notifications", .english = "Pop-up notifications", .classes = { L"WBP_ModernPrefab_NotificationInHUD_C" }, .names = { "NotificationInHUD" }, .previewOn = { { L"Enable Notification", {} } } },

@@ -621,7 +621,7 @@ namespace hud
 					void* p = c.At(arg.name);
 					if (!p) { ok = false; break; }
 					switch (arg.kind) {
-					case elements::PreviewArg::kBool: *static_cast<bool*>(p) = arg.b; break;
+					case elements::PreviewArg::kBool: static_cast<bool*>(p)[arg.at] = arg.b; break;
 					case elements::PreviewArg::kDouble: std::memcpy(p, &arg.d, sizeof(double)); break;
 					case elements::PreviewArg::kObjects:
 					case elements::PreviewArg::kDoubles: {
