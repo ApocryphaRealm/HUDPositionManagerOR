@@ -960,7 +960,7 @@ ELEMENTS = [
     ("QuickWheel", False, False, False), ("Crosshair", False, False, False), ("WeaponIcon", False, False, False), ("MagicIcon", False, False, False),
     ("EffectIcons", False, False, False), ("EnemyHealth", False, True, False), ("SneakEye", False, False, False), ("LevelUp", False, False, False),
     ("Level", False, False, False), ("Info", False, False, False), ("Subtitles", False, False, False), ("Location", False, False, False),
-    ("DamageIndicators", False, False, False), ("Notifications", False, False, False), ("Tutorial", False, False, False),
+    ("DamageIndicators", True, False, False), ("Notifications", False, False, False), ("Tutorial", False, False, False),
 ]
 ini = [
     "; HUD Position Manager for Oblivion - settings. The settings page in Apocrypha Menu Framework writes this file;",

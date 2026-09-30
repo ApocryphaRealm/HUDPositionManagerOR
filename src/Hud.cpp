@@ -1406,7 +1406,7 @@ namespace hud
 					if (const auto v = Visibility(w); v == kHidden || v == kCollapsed) SetVisibility(w, kSelfHitTestInvisible);
 					if (Opacity(w) < 0.999f) SetOpacity(w, 1.0f);
 					bool      stopped = false;
-					const int heldCount = HoldSubtreeVisible(w, 0, stopped, &t);
+					const int heldCount = all[i].holdSubtree ? HoldSubtreeVisible(w, 0, stopped, &t) : 0;
 					if (always && (heldCount > 0 || stopped) && !t.forced) {
 						logger::info("hud: {} always visible - {} widget(s) held at full opacity{}", all[i].key, heldCount, stopped ? ", its fade-out stopped" : "");
 					}

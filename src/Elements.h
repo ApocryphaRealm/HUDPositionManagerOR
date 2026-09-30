@@ -74,6 +74,9 @@ namespace elements
 		bool                             bar = false;
 		// a bar whose length may follow the player's maximum of that resource ("Length follows the resource")
 		bool                             stat = false;
+		// the hold (Always visible / the preview) raises every child's opacity and stops the fade-outs; off for a widget
+		// whose children are meant to be invisible until their moment (the damage arrows) - its hold calls show what should show
+		bool                             holdSubtree = true;
 	};
 
 	inline const std::vector<Element>& All()
@@ -128,9 +131,12 @@ namespace elements
 			{ .key = "Location", .english = "Location name", .classes = { L"WBP_ModernHud_Area_C" }, .names = { "WBP_ModernHud_Area", "Area" },
 				.previewOn = { { L"DisplayArea", { ArgText("AreaName", "HPM_PreviewArea", "Area name") } }, { L"Update Visibility", { ArgBool("Visible", true), ArgBool("Area Discovered", true) } } },
 				.previewOff = { { L"Update Visibility", { ArgBool("Visible", false), ArgBool("Area Discovered", false) } } } },
-			{ .key = "DamageIndicators", .english = "Damage direction", .classes = { L"WBP_ModernHud_DamageIndicators_C" }, .names = { "DamageIndicators" },
+			// Always visible (the owner, 2026-09-29) keeps its warning icons shown through the same calls as the preview
+			{ .key = "DamageIndicators", .english = "Damage direction", .classes = { L"WBP_ModernHud_DamageIndicators_C" }, .names = { "DamageIndicators" }, .fades = true,
 				.previewOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
-				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } } },
+				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } },
+				.holdOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
+				.holdOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } }, .holdSubtree = false },
 			{ .key = "Notifications", .english = "Pop-up notifications", .classes = { L"WBP_ModernPrefab_NotificationInHUD_C" }, .names = { "NotificationInHUD" }, .previewOn = { { L"Enable Notification", {} } } },
 			// ClearDisplay after the closing animation: the animation alone left the message on screen (the owner, 2026-09-29)
 			{ .key = "Tutorial", .english = "Tutorial messages", .classes = { L"WBP_ModernTutorialDisplay_C" }, .names = { "TutorialDisplay" },
