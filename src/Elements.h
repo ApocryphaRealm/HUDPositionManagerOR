@@ -31,7 +31,8 @@ namespace elements
 		// the call goes to the nearest OUTER user widget of this class instead of the element itself (the enemy bar is
 		// shown and faded by its parent, WBP_ModernTopStats, 2026-09-29)
 		const wchar_t*          outerClass = nullptr;
-		// or to the widget this OBJECT PROPERTY of the element names (the top-stats block's NPC_Health bar)
+		// or to the widget this OBJECT PROPERTY names - of the element, or of the outer widget when outerClass is set too
+		// (the top-stats block's NPC_Health bar, reached from its NPC_Wrapper overlay through the block)
 		const char*             innerProp = nullptr;
 	};
 	inline PreviewArg ArgBool(const char* a_n, bool a_b) { return { a_n, PreviewArg::kBool, a_b }; }
@@ -76,6 +77,10 @@ namespace elements
 		bool                             stat = false;
 		// Length and Height beside Size on its tab: the bars, the level gauge, the compass (the owner, 2026-09-29)
 		bool                             stretch = false;
+		// Length and Height as the LAYOUT size of one image the element names (UImage::SetDesiredSizeOverride) instead of
+		// the render scale: the level gauge's bar grows to the right and its texts keep their size (the owner, 2026-09-29)
+		const char*                      sizeImage = nullptr;
+		const char*                      sizeImage2 = nullptr;   // a second image that follows the height only (the bar's highlight)
 		// the hold (Always visible / the preview) raises every child's opacity and stops the fade-outs; off for a widget
 		// whose children are meant to be invisible until their moment (the damage arrows) - its hold calls show what should show
 		bool                             holdSubtree = true;
@@ -112,10 +117,13 @@ namespace elements
 			// try to position it above where it's currently at"). So the element is the whole block (WBP_ModernTopStats: the
 			// bar, the enemy's name, the boss frame), moved as one. The block's own HandleNPCVisibility raises the retainer's
 			// material veil and keeps it up until FadeNPCOut; the inner bar's SetProgress fills it for the preview.
-			{ .key = "EnemyHealth", .english = "Enemy health", .classes = { L"WBP_ModernTopStats_C" }, .names = { "WBP_ModernTopStats", "TopStats" }, .fades = true,
-				.previewOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) } }, { L"SetProgress", { ArgDouble("InProgress", 0.75), ArgBool("IsPreview", true) }, nullptr, "NPC_Health" } },
-				.previewOff = { { L"SetProgress", { ArgDouble("InProgress", 0.0), ArgBool("IsPreview", true) }, nullptr, "NPC_Health" }, { L"FadeNPCOut", {} } },
-				.holdOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) } } }, .holdOff = { { L"FadeNPCOut", {} } }, .bar = true, .stretch = true },
+			// The element is the block's NPC_Wrapper overlay (the retainer box, the bar and the name), not the whole block: the
+			// breath bar is another child of the block and moved with it (the owner, 2026-09-29). The block's own functions are
+			// reached through outerClass, the bar's SetProgress through the block's NPC_Health property.
+			{ .key = "EnemyHealth", .english = "Enemy health", .classes = {}, .names = { "NPC_Wrapper" }, .fades = true,
+				.previewOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) }, L"WBP_ModernTopStats_C" }, { L"SetProgress", { ArgDouble("InProgress", 0.75), ArgBool("IsPreview", true) }, L"WBP_ModernTopStats_C", "NPC_Health" } },
+				.previewOff = { { L"SetProgress", { ArgDouble("InProgress", 0.0), ArgBool("IsPreview", true) }, L"WBP_ModernTopStats_C", "NPC_Health" }, { L"FadeNPCOut", {}, L"WBP_ModernTopStats_C" } },
+				.holdOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) }, L"WBP_ModernTopStats_C" } }, .holdOff = { { L"FadeNPCOut", {}, L"WBP_ModernTopStats_C" } }, .bar = true, .stretch = true },
 			{ .key = "SneakEye", .english = "Sneak eye", .classes = { L"WBP_ModernHud_SneakEye_C" }, .names = { "SneakEye" },
 				.previewOn = { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", true) } }, { L"Update Sneak Level", { ArgDouble("InSneakLevel", 0.5) } } }, .previewOff = { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", false) } } } },
 			{ .key = "LevelUp", .english = "Level-up gauge", .classes = { L"WBP_ModernHud_LevelUpGauge_C" }, .names = { "LevelUpGauge" },
@@ -123,7 +131,7 @@ namespace elements
 			// the player's level as an instance of the game's own level-up gauge (its "Lvl [bar] 5" row, the skill text and the
 			// level-up icon hidden), created by this mod (createClass); "Level" is its tab. A plain text block came out black with
 			// no bar (the owner, 2026-09-29).
-			{ .key = "Level", .english = "Level", .classes = { L"HPM_LevelGauge_C" }, .names = { "HPM_LevelGauge" }, .createClass = "WBP_ModernHud_LevelUpGauge_C", .stretch = true },
+			{ .key = "Level", .english = "Level", .classes = { L"HPM_LevelGauge_C" }, .names = { "HPM_LevelGauge" }, .createClass = "WBP_ModernHud_LevelUpGauge_C", .stretch = true, .sizeImage = "AltarProgressBar", .sizeImage2 = "AltarBarProgressHighlight" },
 			{ .key = "Info", .english = "Target name and value", .classes = { L"WBP_ModernHud_Info_C" }, .names = { "WBP_ModernHud_Info", "Info" },
 				.previewOn = { { L"ShowHide", { ArgBool("InShow", true) } }, { L"UpdateEmpty", { ArgBool("bIsEmpty", false) } }, { L"UpdateTargedItemName", { ArgText("InName", "HPM_PreviewItem", "Item name") } } },
 				.previewOff = { { L"UpdateEmpty", { ArgBool("bIsEmpty", true) } }, { L"ShowHide", { ArgBool("InShow", false) } } } },

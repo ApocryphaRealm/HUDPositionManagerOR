@@ -71,6 +71,7 @@ namespace hud
 			float        veilNow = 1.0f;
 			double       pivotAppliedX = 0.5;
 			float        shownProgress = -1.0f;   // the level gauge's bar
+			double       sizeBaseW = 0, sizeBaseH = 0, sizeAppliedX = 0, sizeAppliedY = 0;   // sizeImage: the image's own size, and the override written
 			// moveViaSlot: the slot's padding (Left, Top, Right, Bottom) - the game's own, and what this mod wrote last
 			bool        havePadBase = false, padWrote = false;
 			float       basePad[4]{}, lastPad[4]{};
@@ -563,13 +564,6 @@ namespace hud
 			}
 			for (const auto& call : a_calls) {
 				UE::UObject* target = a_w;
-				if (call.innerProp) {   // a widget the element names in one of its object properties
-					target = ObjProp(a_w, call.innerProp);
-					if (!target) {
-						logger::debug("preview: {} has no {}", a_key, call.innerProp);
-						continue;
-					}
-				}
 				if (call.outerClass) {   // the nearest outer user widget of that class (the element's owner)
 					target = nullptr;
 					for (UE::UObject* o = a_w ? a_w->GetOuter() : nullptr; o && !target; o = o->GetOuter()) {
@@ -577,6 +571,13 @@ namespace hud
 					}
 					if (!target) {
 						logger::debug("preview: {} has no outer {}", a_key, ue::Utf8FromWide(call.outerClass));
+						continue;
+					}
+				}
+				if (call.innerProp) {   // a widget named by an object property of the element (or of the outer just found)
+					target = ObjProp(target, call.innerProp);
+					if (!target) {
+						logger::debug("preview: {} has no {}", a_key, call.innerProp);
 						continue;
 					}
 				}
@@ -1275,6 +1276,47 @@ namespace hud
 			return fn && fn();
 		}
 
+		// Length / Height as a layout size (elements::Element::sizeImage): the named image's desired size overridden to its
+		// own size times the two factors, so its row grows one way (a HorizontalBox lays the rest out after it) and the
+		// texts beside it keep their size; a second image (the bar's highlight) follows the height alone. Back to the
+		// image's own size at 1.00 / 1.00.
+		void ApplyLayoutSize(UE::UObject* a_w, Tracked& a_t, const elements::Element& a_el, float a_x, float a_y)
+		{
+			auto* img = ObjProp(a_w, a_el.sizeImage);
+			if (!img) return;
+			if (a_t.sizeBaseW <= 0.0) {   // the image's own size, from its brush
+				static auto* brushStruct = UE::StaticFindObject<UE::UStruct>(nullptr, nullptr, L"/Script/SlateCore.SlateBrush");
+				const auto off = Off(img->GetClass(), "Brush");
+				const auto sz = brushStruct ? Off(brushStruct, "ImageSize") : -1;
+				const float* v = off >= 0 && sz >= 0 ? ue::At<float>(img, off + sz) : nullptr;
+				if (!v || v[0] <= 0.0f || v[1] <= 0.0f) return;
+				a_t.sizeBaseW = v[0];
+				a_t.sizeBaseH = v[1];
+			}
+			const double wantX = a_t.sizeBaseW * a_x, wantY = a_t.sizeBaseH * a_y;
+			if (std::abs(wantX - a_t.sizeAppliedX) < 0.01 && std::abs(wantY - a_t.sizeAppliedY) < 0.01) return;
+			const auto set = [](UE::UObject* a_img, double a_wx, double a_wy) {
+				ue::Call c(a_img, L"SetDesiredSizeOverride");
+				const double v[2] = { a_wx, a_wy };
+				void* p = c.At("DesiredSizeOverride");
+				if (!p) p = c.At("InDesiredSizeOverride");
+				if (p) { std::memcpy(p, v, sizeof(v)); c.Run(); }
+			};
+			set(img, wantX, wantY);
+			if (a_el.sizeImage2) {
+				if (auto* img2 = ObjProp(a_w, a_el.sizeImage2)) {
+					static auto* brushStruct = UE::StaticFindObject<UE::UStruct>(nullptr, nullptr, L"/Script/SlateCore.SlateBrush");
+					const auto off = Off(img2->GetClass(), "Brush");
+					const auto sz = brushStruct ? Off(brushStruct, "ImageSize") : -1;
+					const float* v = off >= 0 && sz >= 0 ? ue::At<float>(img2, off + sz) : nullptr;
+					if (v && v[0] > 0.0f) set(img2, v[0], a_t.sizeBaseH * a_y);
+				}
+			}
+			a_t.sizeAppliedX = wantX;
+			a_t.sizeAppliedY = wantY;
+			logger::debug("hud: {} - its {} sized {:.0f} x {:.0f}", a_el.key, a_el.sizeImage, wantX, wantY);
+		}
+
 		void Apply(const settings::Values& a_s, bool a_gameplay)
 		{
 			const auto& all = elements::All();
@@ -1320,7 +1362,9 @@ namespace hud
 				oy = oy / 100.0 * unitH;
 				const double scale = a_s.enabled && !minimapOwns ? e.scale : 1.0;
 				const double linked = a_s.enabled && e.linkLength && all[i].stat ? LinkedLength(all[i].key, e) : 1.0;   // "Length follows the resource"
-				const double scaleX = scale * (a_s.enabled && !minimapOwns ? e.stretchX * linked : 1.0), scaleY = scale * (a_s.enabled && !minimapOwns ? e.stretchY : 1.0);   // Length / Height on top of Size
+				const bool   sizeByLayout = all[i].sizeImage != nullptr;   // Length / Height as the named image's layout size, not the render scale
+				const double scaleX = scale * (a_s.enabled && !minimapOwns && !sizeByLayout ? e.stretchX * linked : 1.0), scaleY = scale * (a_s.enabled && !minimapOwns && !sizeByLayout ? e.stretchY : 1.0);   // Length / Height on top of Size
+				if (sizeByLayout) ApplyLayoutSize(w, t, all[i], a_s.enabled ? e.stretchX : 1.0f, a_s.enabled ? e.stretchY : 1.0f);
 				if (all[i].bar) ApplyFill(w, t, all[i], a_s.enabled ? e.fill : 0);
 				// the rectangle on screen, twice a second; the offset is clamped so the element never leaves the screen
 				const ULONGLONG nowMs = GetTickCount64();
