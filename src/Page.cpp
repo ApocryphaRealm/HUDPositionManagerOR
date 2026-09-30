@@ -389,6 +389,19 @@ namespace page
 			}
 		}
 
+		// the bumpers (AMF::DeclareInnerTabs): which tab of each bar is open, and the one the bumpers asked for
+		int g_topTab = 0, g_topRequest = -1;
+		int g_elementTab = 0, g_elementRequest = -1;
+
+		ImGuiTabItemFlags TopFlags(int a_index) { return g_topRequest == a_index ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None; }
+
+		// the innermost bar drawn this frame goes to the framework; its answer opens next frame
+		void DeclareTop()
+		{
+			g_topRequest = -1;
+			if (const int r = AMF::DeclareInnerTabs(3, g_topTab); r >= 0 && r != g_topTab) g_topRequest = r;
+		}
+
 		void Draw()
 		{
 			if (!AMF::UseFrameworkImGui()) {
@@ -398,21 +411,25 @@ namespace page
 			if (!ImGui::BeginTabBar("HpmTop", ImGuiTabBarFlags_None)) {
 				return;
 			}
-			if (ImGui::BeginTabItem((std::string(TR("HPM_TabPresets", "Presets")) + "##tabpresets").c_str())) {
+			if (ImGui::BeginTabItem((std::string(TR("HPM_TabPresets", "Presets")) + "##tabpresets").c_str(), nullptr, TopFlags(0))) {
+				g_topTab = 0;
 				PresetsTab();
 				ImGui::EndTabItem();
 			}
 			auto       v = settings::Snapshot();
 			const bool hudFound = hud::HudFound();
 			const auto st = hud::Statuses();
-			if (!ImGui::BeginTabItem((std::string(TR("HPM_TabLayout", "Layout")) + "##tablayout").c_str())) {
-				if (ImGui::BeginTabItem((std::string(TR("HPM_TabCombined", "Combined widgets")) + "##tabcombined").c_str())) {
+			if (!ImGui::BeginTabItem((std::string(TR("HPM_TabLayout", "Layout")) + "##tablayout").c_str(), nullptr, TopFlags(1))) {
+				if (ImGui::BeginTabItem((std::string(TR("HPM_TabCombined", "Combined widgets")) + "##tabcombined").c_str(), nullptr, TopFlags(2))) {
+					g_topTab = 2;
 					CombinedTab(v, st, hudFound);
 					ImGui::EndTabItem();
 				}
 				ImGui::EndTabBar();
+				DeclareTop();   // Presets or Combined widgets open: the bumpers walk the top bar
 				return;
 			}
+			g_topTab = 1;
 			if (v.preview) hud::PageDrawn();
 			ImGui::TextWrapped("%s", TR("HPM_Intro", "Move, resize or hide each part of the HUD. Changes show in the HUD at once and are saved automatically."));
 			if (Switch(TR("HPM_Enabled", "Apply my layout"), &v.enabled)) {
@@ -457,7 +474,8 @@ namespace page
 			std::size_t current = elements::Count();
 			if (ImGui::BeginTabBar("HudElements", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) {
 				for (std::size_t i = 0; i < elements::Count(); ++i) {
-					if (ImGui::BeginTabItem((std::string(ElementName(i)) + "##tab" + elements::All()[i].key).c_str())) {
+					const ImGuiTabItemFlags f = g_elementRequest == static_cast<int>(i) ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+					if (ImGui::BeginTabItem((std::string(ElementName(i)) + "##tab" + elements::All()[i].key).c_str(), nullptr, f)) {
 						current = i;
 						ElementTab(i, v, st, hudFound);
 						ImGui::EndTabItem();
@@ -465,7 +483,10 @@ namespace page
 				}
 				ImGui::EndTabBar();
 			}
-			(void)current;
+			// the Layout tab is open: its element tabs are the innermost bar, and the bumpers walk them
+			if (current < elements::Count()) g_elementTab = static_cast<int>(current);
+			g_elementRequest = -1;
+			if (const int r = AMF::DeclareInnerTabs(static_cast<int>(elements::Count()), g_elementTab); r >= 0 && r != g_elementTab) g_elementRequest = r;
 			ImGui::Spacing();
 			ImGui::Separator();
 			if (ImGui::Button(TR("HPM_ResetAll", "Reset every element"))) {
@@ -473,7 +494,7 @@ namespace page
 				logger::info("page: every element reset");
 			}
 			ImGui::EndTabItem();
-			if (ImGui::BeginTabItem((std::string(TR("HPM_TabCombined", "Combined widgets")) + "##tabcombined").c_str())) {
+			if (ImGui::BeginTabItem((std::string(TR("HPM_TabCombined", "Combined widgets")) + "##tabcombined").c_str(), nullptr, TopFlags(2))) {
 				CombinedTab(v, st, hudFound);
 				ImGui::EndTabItem();
 			}
