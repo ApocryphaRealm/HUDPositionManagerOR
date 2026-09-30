@@ -28,7 +28,6 @@ namespace hud
 			// the indicators (createNative): their marks, and what each was last given
 			std::vector<UE::UObject*>   marks;
 			std::vector<float>          markOp, markAng, markColour, markSize;
-			std::vector<int>            markFrame;          // the sneak eyes: the flipbook frame each shows
 			float                       ringRadius = -1.0f; // the radius the marks were placed at
 			bool                        artSet = false;     // the game's textures are on the marks
 			ULONGLONG                   artTriedAt = 0;
@@ -1444,8 +1443,8 @@ namespace hud
 				auto* m = NewWidget(L"/Script/UMG.Image", tree);
 				if (!m) break;
 				AddAligned(box, m, 2, 2);
-				if (damage) { SetImageSize(m, 190.0, 34.0); SetTint(m, 0.95f, 0.06f, 0.03f); }
-				else { SetImageSize(m, 40.0, 20.0); SetTint(m, 1.0f, 1.0f, 1.0f); }
+				if (damage) SetTint(m, 0.95f, 0.06f, 0.03f);
+				else SetTint(m, 1.0f, 1.0f, 1.0f);
 				SetOpacity(m, 0.0f);
 				a_t.marks.push_back(m);
 			}
@@ -1453,7 +1452,6 @@ namespace hud
 			a_t.markAng.assign(a_t.marks.size(), -999.0f);
 			a_t.markColour.assign(a_t.marks.size(), damage ? 1.0f : 0.0f);
 			a_t.markSize.assign(a_t.marks.size(), 20.0f);
-			a_t.markFrame.assign(a_t.marks.size(), -1);
 			SetVisibility(box, kSelfHitTestInvisible);
 			a_t.created = true;
 			logger::info("hud: {} built on the HUD layer ({} marks)", a_el.key, a_t.marks.size());
@@ -1556,14 +1554,54 @@ namespace hud
 			return cache;
 		}
 
-		// the game's own art on the marks, once it is loaded: the soft glow line (damage), the sneak-eye flipbook (sneak)
+		// the marks' art (2026-09-30): arcs drawn for this mod (tools/gen-indicator-art.py) - white ring segments whose
+		// ring radius in the texture is kArtRingRadius pixels, so a mark sized radius * W / kArtRingRadius lies on the ring
+		constexpr float kArtRingRadius = 420.0f;
+		struct ArcArt { const wchar_t* file; float w, h; };
+		constexpr ArcArt kDamageArt{ L"DamageArc.png", 480.0f, 150.0f };
+		constexpr ArcArt kSneakArt{ L"SneakArc.png", 220.0f, 70.0f };
+
+		// a PNG beside the plugin as a texture, through the engine's own importer (KismetRenderingLibrary)
+		UE::UObject* ImportArt(const std::filesystem::path& a_file, UE::UObject* a_context)
+		{
+			static UE::UObject* lib = nullptr;
+			if (!lib) {
+				auto* cls = UE::StaticFindObject<UE::UClass>(nullptr, nullptr, L"/Script/Engine.KismetRenderingLibrary");
+				lib = cls ? cls->GetDefaultObject(false) : nullptr;
+			}
+			std::error_code ec;
+			if (!lib || !std::filesystem::exists(a_file, ec)) return nullptr;
+			ue::Call c(lib, L"ImportFileAsTexture2D");
+			void* ctx = c ? c.At("WorldContextObject") : nullptr;
+			void* name = c ? c.At("Filename") : nullptr;
+			void* ret = c ? c.At("ReturnValue") : nullptr;
+			if (!ctx || !name || !ret) return nullptr;
+			*static_cast<UE::UObject**>(ctx) = a_context;
+			new (name) UE::FString(a_file.wstring().c_str());
+			c.Run();
+			return *static_cast<UE::UObject**>(ret);
+		}
+
+		// the arcs on the marks: this mod's own, else the game's soft glow line; asked again every 2 s until one is there
 		void SetMarkArt(Tracked& a_t, bool a_damage)
 		{
-			if (a_t.artSet || GetTickCount64() - a_t.artTriedAt < 2000) return;
+			if (a_t.artSet || GetTickCount64() - a_t.artTriedAt < 2000 || a_t.marks.empty()) return;
 			a_t.artTriedAt = GetTickCount64();
-			auto* tex = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, a_damage ? L"/Game/Art/UI/Common/T_Line_glow.T_Line_glow"
-			                                                                         : L"/Game/Art/UI/Modern/HUD/Reticle/SneakEye/T_UI_SneakEyeNew_D.T_UI_SneakEyeNew_D");
-			if (!tex) return;   // not loaded yet: asked again in 2 s; the marks stay plain until then
+			static ue::Handle damageTex, sneakTex;   // imported once; kept alive by the brushes that hold them
+			auto& held = a_damage ? damageTex : sneakTex;
+			const auto file = settings::PluginFolder() / L"HUDPositionManager" / L"Art" / (a_damage ? kDamageArt.file : kSneakArt.file);
+			auto* tex = held.Get();
+			bool own = tex != nullptr;
+			if (!tex) {
+				tex = ImportArt(file, a_t.marks.front());
+				own = tex != nullptr;
+				if (tex) held.Set(tex);
+			}
+			if (!tex) {
+				logger::warn("hud: {} could not be imported as a texture; the {} marks use the game's T_Line_glow", file.string(), a_damage ? "damage" : "sneak");
+				tex = UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Game/Art/UI/Common/T_Line_glow.T_Line_glow");
+			}
+			if (!tex) return;   // neither yet: asked again in 2 s; the marks stay plain until then
 			for (std::size_t k = 0; k < a_t.marks.size(); ++k) {
 				auto* m = a_t.marks[k];
 				if (!ue::IsLive(m)) continue;
@@ -1572,28 +1610,10 @@ namespace hud
 				c.Set("Texture", tex);
 				if (void* p = c.At("bMatchSize")) *static_cast<bool*>(p) = false;
 				c.Run();
-				SetImageSize(m, a_damage ? 190.0 : 40.0, a_damage ? 34.0 : 20.0);   // the texture must not size the mark
-				a_t.markSize[k] = a_damage ? 20.0f : -1.0f;
-				a_t.markFrame[k] = -1;
+				a_t.markSize[k] = -1.0f;   // sized again from the ring on the next placement
 			}
 			a_t.artSet = true;
-			logger::info("hud: the {} marks wear the game's {}", a_damage ? "damage" : "sneak", a_damage ? "T_Line_glow" : "sneak-eye flipbook");
-		}
-
-		// one frame of the 8 x 8 sneak-eye flipbook (0 closed .. 63 open) through the image brush's UV region
-		void SetEyeFrame(UE::UObject* a_img, int a_frame)
-		{
-			static auto* brushStruct = UE::StaticFindObject<UE::UStruct>(nullptr, nullptr, L"/Script/SlateCore.SlateBrush");
-			const auto off = Off(a_img->GetClass(), "Brush");
-			const auto uv = brushStruct ? Off(brushStruct, "UVRegion") : -1;
-			if (off < 0 || uv < 0) return;
-			auto* box = ue::At<std::uint8_t>(a_img, off + uv);
-			if (!box) return;
-			const int   f = std::clamp(a_frame, 0, 63);
-			const float c = static_cast<float>(f % 8) / 8.0f, r = static_cast<float>(f / 8) / 8.0f;
-			const float v[4] = { c, r, c + 0.125f, r + 0.125f };   // Box2f { Min, Max, bIsValid }
-			std::memcpy(box, v, sizeof(v));
-			box[16] = 1;
+			logger::info("hud: the {} marks wear {}", a_damage ? "damage" : "sneak", own ? file.filename().string() : std::string("the game's T_Line_glow"));
 		}
 
 		UE::UObject* LiveOf(ue::Handle& a_h, ULONGLONG& a_scanAt, const wchar_t* a_class)
@@ -1653,7 +1673,7 @@ namespace hud
 		}
 
 		// one mark on the ring: its direction (0 = straight ahead, + clockwise), opacity, colour (0 white .. 1 red) and size
-		void PlaceMark(Tracked& a_t, std::size_t a_k, bool a_damage, float a_angle, float a_op, float a_colour, float a_size, int a_frame = -1)
+		void PlaceMark(Tracked& a_t, std::size_t a_k, bool a_damage, float a_angle, float a_op, float a_colour, float a_size)
 		{
 			auto* m = a_t.marks[a_k];
 			if (!ue::IsLive(m)) return;
@@ -1661,13 +1681,8 @@ namespace hud
 			if (a_op > 0.0f && std::abs(a_angle - a_t.markAng[a_k]) > 0.2f) {
 				const double rad = a_angle * std::numbers::pi / 180.0;
 				Call2(m, L"SetRenderTranslation", "Translation", radius * std::sin(rad), -radius * std::cos(rad));
-				SetAngle(m, a_damage ? a_angle : 0.0f);   // an arc lies along the ring; an eye stays upright
+				SetAngle(m, a_angle);   // the arc lies along the ring
 				a_t.markAng[a_k] = a_angle;
-			}
-			if (!a_damage && a_frame >= 0 && a_t.artSet && a_frame != a_t.markFrame[a_k]) {
-				SetEyeFrame(m, a_frame);
-				a_t.markFrame[a_k] = a_frame;
-				a_t.markColour[a_k] = -1.0f;   // the tint call below repaints it
 			}
 			if (!a_damage && std::abs(a_colour - a_t.markColour[a_k]) > 0.02f) {
 				// white (hidden) -> yellow (half) -> red (detected)
@@ -1678,8 +1693,10 @@ namespace hud
 				SetTint(m, r, std::max(g, 0.05f), std::max(b, 0.03f));
 				a_t.markColour[a_k] = a_colour;
 			}
-			if (!a_damage && std::abs(a_size - a_t.markSize[a_k]) > 0.5f) {
-				SetImageSize(m, a_size * 2.0f, a_size);   // an eye frame is twice as wide as it is tall
+			if (a_size > 0.0f && std::abs(a_size - a_t.markSize[a_k]) > 0.01f) {   // a_size: a multiple of the ring's own arc
+				const ArcArt& art = a_damage ? kDamageArt : kSneakArt;
+				const double  f = radius / kArtRingRadius * a_size;
+				SetImageSize(m, art.w * f, art.h * f);
 				a_t.markSize[a_k] = a_size;
 			}
 			if (std::abs(a_op - a_t.markOp[a_k]) > 0.01f) {
@@ -1698,14 +1715,16 @@ namespace hud
 			if (std::abs(radius - a_t.ringRadius) > 0.5f) {   // a new radius: every mark is placed again, and the box sized to the ring
 				a_t.ringRadius = radius;
 				std::ranges::fill(a_t.markAng, -999.0f);
-				if (a_t.area && ue::IsLive(a_t.area)) SetImageSize(a_t.area, radius * 2.0 + (damage ? 40.0 : 50.0), radius * 2.0 + (damage ? 40.0 : 50.0));
+				std::ranges::fill(a_t.markSize, -1.0f);
+				const double arcH = radius / kArtRingRadius * (damage ? kDamageArt.h : kSneakArt.h) * 1.2;
+				if (a_t.area && ue::IsLive(a_t.area)) SetImageSize(a_t.area, radius * 2.0 + arcH, radius * 2.0 + arcH);
 			}
 			const ULONGLONG now = GetTickCount64();
 			const IndicatorData d = ReadIndicatorData();
-			std::vector<std::tuple<float, float, float, float, int>> show;   // (angle, opacity, colour, size, eye frame)
+			std::vector<std::tuple<float, float, float, float>> show;   // (angle, opacity, colour 0 white .. 0.5 yellow .. 1 red, size x the ring's arc)
 			if (a_preview) {
-				if (damage) show = { { -60.0f, 0.85f, 1.0f, 20.0f, -1 }, { 5.0f, 0.85f, 1.0f, 20.0f, -1 }, { 125.0f, 0.85f, 1.0f, 20.0f, -1 } };
-				else show = { { -50.0f, 0.7f, 0.0f, 18.0f, 6 }, { 30.0f, 0.9f, 0.55f, 20.0f, 36 }, { 150.0f, 1.0f, 1.0f, 24.0f, 63 } };
+				if (damage) show = { { -60.0f, 0.85f, 1.0f, 1.0f }, { 5.0f, 0.85f, 1.0f, 1.0f }, { 125.0f, 0.85f, 1.0f, 1.0f } };
+				else show = { { -50.0f, 0.8f, 0.0f, 1.0f }, { 30.0f, 0.95f, 0.5f, 1.0f }, { 150.0f, 1.0f, 1.0f, 1.12f } };
 			} else if (damage) {
 				if (d.ok && a_gameplay && a_t.lastHealth >= 0.0f && d.health >= 0.0f && d.health < a_t.lastHealth - 0.002f) {
 					const float drop = a_t.lastHealth - d.health;
@@ -1728,23 +1747,23 @@ namespace hud
 				std::erase_if(a_t.flashes, [&](const IndicatorFlash& f) { return now - f.at >= 1500; });
 				for (const auto& f : a_t.flashes) {
 					const float age = static_cast<float>(now - f.at) / 1500.0f;
-					show.emplace_back(f.angle, f.strength * (1.0f - age), 1.0f, 20.0f, -1);
+					show.emplace_back(f.angle, f.strength * (1.0f - age), 1.0f, 1.0f);
 				}
 			} else if (d.ok && a_gameplay && d.sneaking) {
-				// every actor with an entry for the player, in its direction: unseen - a closed white eye; noticed - half open,
-				// amber; seen (detected) - open, red and larger. Lost (0) is not drawn.
+				// every actor with an entry for the player, an arc in its direction: white - undetected (unseen); yellow - partly
+				// detected (noticed); red and a little larger - detected (seen). Lost (0) is not drawn.
 				for (const auto& o : Observers()) {
 					if (o.level <= 0 || show.size() >= a_t.marks.size()) continue;
 					const float rel = RelativeBearing(o.bearing, d.heading);
-					if (o.level >= 3) show.emplace_back(rel, 1.0f, 1.0f, 24.0f, 63);
-					else if (o.level == 2) show.emplace_back(rel, 0.95f, 0.55f, 20.0f, 36);
-					else show.emplace_back(rel, 0.7f, 0.0f, 18.0f, 6);
+					if (o.level >= 3) show.emplace_back(rel, 1.0f, 1.0f, 1.12f);
+					else if (o.level == 2) show.emplace_back(rel, 0.95f, 0.5f, 1.0f);
+					else show.emplace_back(rel, 0.8f, 0.0f, 1.0f);
 				}
 			}
 			for (std::size_t k = 0; k < a_t.marks.size(); ++k) {
 				if (k < show.size()) {
-					const auto& [ang, op, col, size, frame] = show[k];
-					PlaceMark(a_t, k, damage, ang, op, col, size, frame);
+					const auto& [ang, op, col, size] = show[k];
+					PlaceMark(a_t, k, damage, ang, op, col, size);
 				} else {
 					PlaceMark(a_t, k, damage, a_t.markAng[k], 0.0f, a_t.markColour[k], a_t.markSize[k]);
 				}
