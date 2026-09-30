@@ -1249,6 +1249,25 @@ namespace hud
 			return std::clamp(g_stat.max[which] / static_cast<double>(a_e.pointsPerLength), 0.25, 4.0);
 		}
 
+		// Minimap Menu (another of the owner's plugins) moves the location banner to sit by its map; while its export says so,
+		// this mod leaves the Location element's transform alone. The export is looked up once the DLL is loaded, at most
+		// every 5 s until then.
+		bool MinimapOwnsLocation()
+		{
+			using Fn = bool (*)();
+			static Fn        fn = nullptr;
+			static ULONGLONG askedAt = 0;
+			static bool      logged = false;
+			if (!fn && GetTickCount64() - askedAt >= 5000) {
+				askedAt = GetTickCount64();
+				if (HMODULE m = ::GetModuleHandleW(L"MinimapMenu.dll")) {
+					fn = reinterpret_cast<Fn>(::GetProcAddress(m, "MinimapMenu_OwnsLocationPopup"));
+					if (!logged) { logged = true; logger::info("hud: Minimap Menu is loaded{}", fn ? " - it says when it places the location banner" : ", without MinimapMenu_OwnsLocationPopup"); }
+				}
+			}
+			return fn && fn();
+		}
+
 		void Apply(const settings::Values& a_s, bool a_gameplay)
 		{
 			const auto& all = elements::All();
@@ -1285,15 +1304,16 @@ namespace hud
 					t.haveBase = true;
 					t.wrote = false;
 				}
-				auto [ox, oy] = a_s.enabled ? Offset(a_s, i) : std::pair<double, double>{ 0.0, 0.0 };
+				const bool minimapOwns = std::string_view(all[i].key) == "Location" && MinimapOwnsLocation();
+				auto [ox, oy] = a_s.enabled && !minimapOwns ? Offset(a_s, i) : std::pair<double, double>{ 0.0, 0.0 };
 				// the settings hold percent of the screen; the render transform takes layout units (1920 x 1080 at every
 				// DPI, wider on a wide screen - the measured viewport, or the designer's size until it is measured)
 				const double unitW = g_viewW > 0.0 ? g_viewW : 1920.0, unitH = g_viewH > 0.0 ? g_viewH : 1080.0;
 				ox = ox / 100.0 * unitW;
 				oy = oy / 100.0 * unitH;
-				const double scale = a_s.enabled ? e.scale : 1.0;
+				const double scale = a_s.enabled && !minimapOwns ? e.scale : 1.0;
 				const double linked = a_s.enabled && e.linkLength && all[i].stat ? LinkedLength(all[i].key, e) : 1.0;   // "Length follows the resource"
-				const double scaleX = scale * (a_s.enabled ? e.stretchX * linked : 1.0), scaleY = scale * (a_s.enabled ? e.stretchY : 1.0);   // Length / Height on top of Size
+				const double scaleX = scale * (a_s.enabled && !minimapOwns ? e.stretchX * linked : 1.0), scaleY = scale * (a_s.enabled && !minimapOwns ? e.stretchY : 1.0);   // Length / Height on top of Size
 				if (all[i].bar) ApplyFill(w, t, all[i], a_s.enabled ? e.fill : 0);
 				// the rectangle on screen, twice a second; the offset is clamped so the element never leaves the screen
 				const ULONGLONG nowMs = GetTickCount64();
@@ -1463,6 +1483,7 @@ namespace hud
 				st.opacity = Opacity(w);
 				st.visibility = Visibility(w);
 				st.forcedVisible = t.forced;
+				st.placedByMinimap = minimapOwns;
 				st.measured = t.measured;
 				st.vx = t.vx;
 				st.vy = t.vy;
@@ -1607,7 +1628,7 @@ namespace hud
 			const auto& s = st[i];
 			els[all[i].key] = s.found ? json{ { "found", true }, { "widget", s.widget }, { "base", { s.baseX, s.baseY, s.baseScale } },
 												{ "now", { s.x, s.y, s.scale } }, { "opacity", s.opacity }, { "visibility", s.visibility },
-												{ "forced_visible", s.forcedVisible }, { "measured", s.measured },
+												{ "forced_visible", s.forcedVisible }, { "placed_by_minimap", s.placedByMinimap }, { "measured", s.measured },
 												{ "rect", { s.vx, s.vy, s.vw, s.vh } }, { "drawn", s.drawn ? json{ s.dvx, s.dvy, s.dvw, s.dvh } : json(nullptr) }, { "viewport", { s.viewW, s.viewH } } }
 									  : json{ { "found", false } };
 		}

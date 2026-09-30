@@ -29,6 +29,7 @@ namespace hud
 		float       opacity = 1.0f;
 		int         visibility = -1;                       // ESlateVisibility: 0 Visible, 1 Collapsed, 2 Hidden, 3/4 hit-test-invisible
 		bool        forcedVisible = false;                 // "Always visible" is holding it up now
+		bool        placedByMinimap = false;               // Minimap Menu owns this element's place (the Location banner): its sliders do nothing
 		// the element's rectangle on screen in viewport pixels (as drawn, with this mod's offset and scale in it) and
 		// the viewport's size - the page's slider bounds come from these (2026-09-29: nothing may leave the screen)
 		bool        measured = false;

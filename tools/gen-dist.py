@@ -910,6 +910,19 @@ NEW = {
         "W którą stronę pasek się wydłuża lub skraca: od środka, albo zakotwiczony na jednym końcu w stronę drugiego.",
         "Kterým směrem se lišta prodlužuje nebo zkracuje: od středu, nebo ukotvená na jednom konci směrem k druhému.",
     ],
+    "HPM_PlacedByMinimap": [
+        "Placed by Minimap Menu right now: the sliders below wait until the minimap lets go of it.",
+        "現在はMinimap Menuが配置しています。ミニマップが手放すまで、下のスライダーは待機します。",
+        "지금은 Minimap Menu가 배치합니다. 미니맵이 놓아줄 때까지 아래 슬라이더는 대기합니다.",
+        "当前由 Minimap Menu 放置：下面的滑块要等小地图放开它后才生效。",
+        "Сейчас его размещает Minimap Menu: ползунки ниже ждут, пока миникарта его отпустит.",
+        "Wird gerade von Minimap Menu platziert: die Regler unten warten, bis die Minikarte es freigibt.",
+        "Placé par Minimap Menu pour l'instant : les curseurs ci-dessous attendent que la minicarte le libère.",
+        "Colocado ahora por Minimap Menu: los controles de abajo esperan a que el minimapa lo suelte.",
+        "Ora lo colloca Minimap Menu: i cursori qui sotto aspettano che la minimappa lo lasci.",
+        "Teraz umieszcza go Minimap Menu: suwaki poniżej czekają, aż minimapa go puści.",
+        "Teď ho umisťuje Minimap Menu: posuvníky níže čekají, až ho minimapa pustí.",
+    ],
 }
 
 

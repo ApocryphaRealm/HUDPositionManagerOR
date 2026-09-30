@@ -234,6 +234,7 @@ namespace page
 				ImGui::TextWrapped("%s", TR("HPM_NotFound", "Not in your HUD right now: it may appear later, or the HUD you use may not have it. Its settings are kept."));
 			} else {
 				Hint(TR("HPM_Found", "In your HUD. Changes show at once."));
+				if (a_st.placedByMinimap) Hint(TR("HPM_PlacedByMinimap", "Placed by Minimap Menu right now: the sliders below wait until the minimap lets go of it."));
 			}
 			bool changed = false;
 			// the sliders' range is the screen: as far as the element can go before its edge leaves the viewport, from its
