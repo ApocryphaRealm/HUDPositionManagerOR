@@ -391,7 +391,9 @@ namespace page
 
 		// the bumpers (AMF::DeclareInnerTabs): which tab of each bar is open, and the one the bumpers asked for
 		int g_topTab = 0, g_topRequest = -1;
-		int g_elementTab = 0, g_elementRequest = -1;
+		int g_elementTab = 0, g_elementRequest = -1;   // positions in the DISPLAYED order
+		std::string g_elementOpen;                      // the key of the element tab open last frame
+		std::string g_elementOrderId;                   // the displayed order last frame, to notice a change
 
 		ImGuiTabItemFlags TopFlags(int a_index) { return g_topRequest == a_index ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None; }
 
@@ -471,22 +473,41 @@ namespace page
 			                     : TR("HPM_AlwaysAllOffHint", "Off: the game decides. The bars fade out when they are full."));
 
 			ImGui::Spacing();
-			std::size_t current = elements::Count();
-			if (ImGui::BeginTabBar("HudElements", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) {
-				for (std::size_t i = 0; i < elements::Count(); ++i) {
-					const ImGuiTabItemFlags f = g_elementRequest == static_cast<int>(i) ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
-					if (ImGui::BeginTabItem((std::string(ElementName(i)) + "##tab" + elements::All()[i].key).c_str(), nullptr, f)) {
-						current = i;
+			// the displayed order: the Combined widgets members first, in the order they were picked, then the rest
+			std::vector<std::size_t> order;
+			for (const auto& key : v.group.members) {
+				if (const int k = elements::IndexOf(key); k >= 0) order.push_back(static_cast<std::size_t>(k));
+			}
+			const std::size_t pinned = order.size();
+			for (std::size_t i = 0; i < elements::Count(); ++i) {
+				if (std::ranges::find(order, i) == order.end()) order.push_back(i);
+			}
+			std::string orderId;
+			for (const auto i : order) orderId += std::to_string(i) + ".";
+			const bool reordered = !g_elementOrderId.empty() && orderId != g_elementOrderId;
+			g_elementOrderId = orderId;
+			std::size_t shown = order.size();   // the displayed position of the open tab
+			// the bar's ID carries the order: ImGui keeps a bar's first tab order, so a new membership is a new bar
+			if (ImGui::BeginTabBar(("HudElements##" + orderId).c_str(), ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_TabListPopupButton)) {
+				for (std::size_t d = 0; d < order.size(); ++d) {
+					const std::size_t i = order[d];
+					const bool keep = reordered && g_elementOpen == elements::All()[i].key;   // the open element stays open in the new order
+					const ImGuiTabItemFlags f = (g_elementRequest == static_cast<int>(d) || keep) ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+					// a pinned tab (a Combined widgets member) is marked so the pin is visible
+					const std::string label = std::string(d < pinned ? "+ " : "") + ElementName(i) + "##tab" + elements::All()[i].key;
+					if (ImGui::BeginTabItem(label.c_str(), nullptr, f)) {
+						shown = d;
+						g_elementOpen = elements::All()[i].key;
 						ElementTab(i, v, st, hudFound);
 						ImGui::EndTabItem();
 					}
 				}
 				ImGui::EndTabBar();
 			}
-			// the Layout tab is open: its element tabs are the innermost bar, and the bumpers walk them
-			if (current < elements::Count()) g_elementTab = static_cast<int>(current);
+			// the Layout tab is open: its element tabs are the innermost bar, and the bumpers walk them in the displayed order
+			if (shown < order.size()) g_elementTab = static_cast<int>(shown);
 			g_elementRequest = -1;
-			if (const int r = AMF::DeclareInnerTabs(static_cast<int>(elements::Count()), g_elementTab); r >= 0 && r != g_elementTab) g_elementRequest = r;
+			if (const int r = AMF::DeclareInnerTabs(static_cast<int>(order.size()), g_elementTab); r >= 0 && r != g_elementTab) g_elementRequest = r;
 			ImGui::Spacing();
 			ImGui::Separator();
 			if (ImGui::Button(TR("HPM_ResetAll", "Reset every element"))) {
