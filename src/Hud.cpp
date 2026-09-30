@@ -338,7 +338,14 @@ namespace hud
 				return -1.0f;
 			}
 			const float* p = ue::At<float>(v, off + inner);
-			return p ? std::clamp(*p, 0.0f, 1.0f) : -1.0f;
+			const float  fromHud = p ? std::clamp(*p, 0.0f, 1.0f) : -1.0f;
+			// the HUD's view model is only given the progress on a skill event: until then the player's own count of major
+			// skill advances since the last level (ten make a level) stands in (the gauge came up empty, 2026-09-29)
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			const float fromPlayer = player ? std::clamp(static_cast<float>(player->skillAdvanceCount) / 10.0f, 0.0f, 1.0f) : -1.0f;
+			static bool logged = false;
+			if (!logged && fromHud >= 0.0f) { logged = true; logger::info("hud: level progress - the HUD says {:.3f}, the player's skill advances {}", fromHud, player ? player->skillAdvanceCount : -1); }
+			return fromHud > 0.0f ? fromHud : fromPlayer;
 		}
 
 		void SetLevelGauge(UE::UObject* a_w, Tracked& a_t)

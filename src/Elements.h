@@ -70,8 +70,10 @@ namespace elements
 		// an element this mod CREATES on the HUD from one of the game's own widget classes (found by class name), because
 		// the game has no such widget: the Level text (2026-09-29)
 		const char*                      createClass = nullptr;
-		// a resource bar: Length and Height beside Size on its tab, and "Fill from" on the Combined widgets tab (2026-09-29)
+		// a resource bar: "Fill from" on the Combined widgets tab (2026-09-29)
 		bool                             bar = false;
+		// Length and Height beside Size on its tab: the bars, the level gauge, the compass (the owner, 2026-09-29)
+		bool                             stretch = false;
 		// a bar whose length may follow the player's maximum of that resource ("Length follows the resource")
 		bool                             stat = false;
 		// the hold (Always visible / the preview) raises every child's opacity and stops the fade-outs; off for a widget
@@ -88,13 +90,13 @@ namespace elements
 			L"/Game/Art/UI/Icons/Dynamic_Icons/menus/icons/magic/restoration_icons/T_fortify_restoration.T_fortify_restoration",
 		};
 		static const std::vector<Element> kAll{
-			{ .key = "Health", .english = "Health", .classes = { L"WBP_ModernHud_Health_C" }, .names = { "Health", "HealthBar" }, .fades = true, .visibleH = 0.5f, .bar = true, .stat = true },
-			{ .key = "Magicka", .english = "Magicka", .classes = { L"WBP_ModernHud_Magicka_C" }, .names = { "Magicka", "MagickaBar" }, .fades = true, .visibleH = 0.5f, .bar = true, .stat = true },
-			{ .key = "Fatigue", .english = "Fatigue", .classes = { L"WBP_ModernHud_Fatigue_C" }, .names = { "Fatigue", "FatigueBar" }, .fades = true, .visibleH = 0.5f, .bar = true, .stat = true },
+			{ .key = "Health", .english = "Health", .classes = { L"WBP_ModernHud_Health_C" }, .names = { "Health", "HealthBar" }, .fades = true, .visibleH = 0.5f, .bar = true, .stat = true, .stretch = true },
+			{ .key = "Magicka", .english = "Magicka", .classes = { L"WBP_ModernHud_Magicka_C" }, .names = { "Magicka", "MagickaBar" }, .fades = true, .visibleH = 0.5f, .bar = true, .stat = true, .stretch = true },
+			{ .key = "Fatigue", .english = "Fatigue", .classes = { L"WBP_ModernHud_Fatigue_C" }, .names = { "Fatigue", "FatigueBar" }, .fades = true, .visibleH = 0.5f, .bar = true, .stat = true, .stretch = true },
 			{ .key = "Breath", .english = "Breath meter", .classes = { L"WBP_ModernHud_Breath_C" }, .names = { "WBP_ModernHud_Breath", "Breath" }, .fades = true,
 				.previewOn = { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 0.6) } } }, .previewOff = { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 1.0) } } },
-				.holdOn = { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 1.0) } } }, .bar = true },
-			{ .key = "Compass", .english = "Compass", .classes = { L"WBP_ModernHud_Compass_C" }, .names = { "Compass" }, .fades = true, .visibleW = 0.37f },
+				.holdOn = { { L"UpdateBreathPercentage", { ArgDouble("Percentage", 1.0) } } }, .bar = true, .stretch = true },
+			{ .key = "Compass", .english = "Compass", .classes = { L"WBP_ModernHud_Compass_C" }, .names = { "Compass" }, .fades = true, .visibleW = 0.37f, .stretch = true },
 			// the quick wheel shown while playing (the owner, 2026-09-29: "change the location or position of the wheel menu in game
 			// only not in the menu") - the HUD layout's own instance; the menu's quick-keys page is another class and is not touched
 			{ .key = "QuickWheel", .english = "Quick wheel", .classes = { L"WBP_ModernMenu_QuickKeys_C" }, .names = { "WBP_ModernMenu_QuickKeys" }, .moveViaSlot = true },
@@ -113,7 +115,7 @@ namespace elements
 			{ .key = "EnemyHealth", .english = "Enemy health", .classes = { L"WBP_ModernTopStats_C" }, .names = { "WBP_ModernTopStats", "TopStats" }, .fades = true,
 				.previewOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) } }, { L"SetProgress", { ArgDouble("InProgress", 0.75), ArgBool("IsPreview", true) }, nullptr, "NPC_Health" } },
 				.previewOff = { { L"SetProgress", { ArgDouble("InProgress", 0.0), ArgBool("IsPreview", true) }, nullptr, "NPC_Health" }, { L"FadeNPCOut", {} } },
-				.holdOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) } } }, .holdOff = { { L"FadeNPCOut", {} } }, .bar = true },
+				.holdOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) } } }, .holdOff = { { L"FadeNPCOut", {} } }, .bar = true, .stretch = true },
 			{ .key = "SneakEye", .english = "Sneak eye", .classes = { L"WBP_ModernHud_SneakEye_C" }, .names = { "SneakEye" },
 				.previewOn = { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", true) } }, { L"Update Sneak Level", { ArgDouble("InSneakLevel", 0.5) } } }, .previewOff = { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", false) } } } },
 			{ .key = "LevelUp", .english = "Level-up gauge", .classes = { L"WBP_ModernHud_LevelUpGauge_C" }, .names = { "LevelUpGauge" },
@@ -121,7 +123,7 @@ namespace elements
 			// the player's level as an instance of the game's own level-up gauge (its "Lvl [bar] 5" row, the skill text and the
 			// level-up icon hidden), created by this mod (createClass); "Level" is its tab. A plain text block came out black with
 			// no bar (the owner, 2026-09-29).
-			{ .key = "Level", .english = "Level", .classes = { L"HPM_LevelGauge_C" }, .names = { "HPM_LevelGauge" }, .createClass = "WBP_ModernHud_LevelUpGauge_C" },
+			{ .key = "Level", .english = "Level", .classes = { L"HPM_LevelGauge_C" }, .names = { "HPM_LevelGauge" }, .createClass = "WBP_ModernHud_LevelUpGauge_C", .stretch = true },
 			{ .key = "Info", .english = "Target name and value", .classes = { L"WBP_ModernHud_Info_C" }, .names = { "WBP_ModernHud_Info", "Info" },
 				.previewOn = { { L"ShowHide", { ArgBool("InShow", true) } }, { L"UpdateEmpty", { ArgBool("bIsEmpty", false) } }, { L"UpdateTargedItemName", { ArgText("InName", "HPM_PreviewItem", "Item name") } } },
 				.previewOff = { { L"UpdateEmpty", { ArgBool("bIsEmpty", true) } }, { L"ShowHide", { ArgBool("InShow", false) } } } },
@@ -132,7 +134,7 @@ namespace elements
 				.previewOn = { { L"DisplayArea", { ArgText("AreaName", "HPM_PreviewArea", "Area name") } }, { L"Update Visibility", { ArgBool("Visible", true), ArgBool("Area Discovered", true) } } },
 				.previewOff = { { L"Update Visibility", { ArgBool("Visible", false), ArgBool("Area Discovered", false) } } } },
 			// Always visible (the owner, 2026-09-29) keeps its warning icons shown through the same calls as the preview
-			{ .key = "DamageIndicators", .english = "Warning icons", .classes = { L"WBP_ModernHud_DamageIndicators_C" }, .names = { "DamageIndicators" }, .fades = true,
+			{ .key = "DamageIndicators", .english = "Equipped", .classes = { L"WBP_ModernHud_DamageIndicators_C" }, .names = { "DamageIndicators" }, .fades = true,
 				.previewOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
 				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } },
 				.holdOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },

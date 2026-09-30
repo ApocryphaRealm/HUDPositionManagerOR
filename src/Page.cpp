@@ -215,7 +215,7 @@ namespace page
 			if (k == "Subtitles") return TR("HPM_El_Subtitles", "Subtitles and notifications");
 			if (k == "Breath") return TR("HPM_El_Breath", "Breath meter");
 			if (k == "Location") return TR("HPM_El_Location", "Location name");
-			if (k == "DamageIndicators") return TR("HPM_El_DamageIndicators", "Warning icons");
+			if (k == "DamageIndicators") return TR("HPM_El_DamageIndicators", "Equipped");
 			if (k == "Notifications") return TR("HPM_El_Notifications", "Pop-up notifications");
 			if (k == "Tutorial") return TR("HPM_El_Tutorial", "Tutorial messages");
 			if (k == "QuickWheel") return TR("HPM_El_QuickWheel", "Quick wheel");
@@ -274,7 +274,7 @@ namespace page
 			held.y = ImGui::IsItemActive();
 			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
 			changed |= ScaleSlider((std::string(TR("HPM_Size", "Size")) + id + "s").c_str(), &e.scale, settings::kScaleMin, maxScale);
-			if (el.bar) {   // a resource bar: its length and height on their own, on top of the size
+			if (el.stretch) {   // a bar, the level gauge, the compass: length and height on their own, on top of the size
 				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
 				changed |= ScaleSlider((std::string(TR("HPM_Length", "Length")) + id + "l").c_str(), &e.stretchX, settings::kScaleMin, settings::kScaleMax);
 				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);

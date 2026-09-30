@@ -71,7 +71,7 @@ NEW = {
     "HPM_El_Subtitles": ["Subtitles and notifications", "字幕と通知", "자막과 알림", "字幕与通知", "Субтитры и уведомления", "Untertitel und Meldungen", "Sous-titres et notifications", "Subtítulos y notificaciones", "Sottotitoli e notifiche", "Napisy i powiadomienia", "Titulky a oznámení"],
     "HPM_El_Breath": ["Breath meter", "息メーター", "숨 게이지", "屏息计量条", "Индикатор дыхания", "Atemanzeige", "Jauge de souffle", "Indicador de aire", "Indicatore del respiro", "Wskaźnik oddechu", "Ukazatel dechu"],
     "HPM_El_Location": ["Location name", "場所の名前", "지역 이름", "地点名称", "Название места", "Ortsname", "Nom du lieu", "Nombre del lugar", "Nome del luogo", "Nazwa miejsca", "Název místa"],
-    "HPM_El_DamageIndicators": ["Warning icons", "警告アイコン", "경고 아이콘", "警告图标", "Значки предупреждений", "Warnsymbole", "Icônes d'alerte", "Iconos de aviso", "Icone di avviso", "Ikony ostrzeżeń", "Varovné ikony"],
+    "HPM_El_DamageIndicators": ["Equipped", "装備", "장비", "装备", "Снаряжение", "Ausrüstung", "Équipement", "Equipo", "Equipaggiamento", "Wyposażenie", "Výbava"],
     "HPM_El_Notifications": ["Pop-up notifications", "ポップアップ通知", "팝업 알림", "弹出通知", "Всплывающие уведомления", "Einblendmeldungen", "Notifications contextuelles", "Notificaciones emergentes", "Notifiche a comparsa", "Powiadomienia wyskakujące", "Vyskakovací oznámení"],
     "HPM_El_Tutorial": ["Tutorial messages", "チュートリアルメッセージ", "튜토리얼 메시지", "教程提示", "Сообщения обучения", "Tutorial-Meldungen", "Messages du tutoriel", "Mensajes del tutorial", "Messaggi del tutorial", "Komunikaty samouczka", "Zprávy výuky"],
     "HPM_AlwaysOne": ["Always visible", "常に表示", "항상 표시", "始终显示", "Всегда видно", "Immer sichtbar", "Toujours visible", "Siempre visible", "Sempre visibile", "Zawsze widoczne", "Vždy viditelné"],
