@@ -206,6 +206,7 @@ namespace settings
 				if (const auto* s = Get(a_e, k + ".fHeight")) e.stretchY = static_cast<float>(std::atof(s->c_str()));
 				if (const auto* s = Get(a_e, k + ".bHide")) e.hide = Flag(*s);
 				if (const auto* s = Get(a_e, k + ".bAlwaysVisible")) e.alwaysVisible = Flag(*s);
+				else if (all[i].createClass) e.alwaysVisible = true;   // this mod's own Level gauge: on unless the file says otherwise
 				if (const auto* s = Get(a_e, k + ".sMoveWith")) e.moveWith = *s;
 				if (const auto* s = Get(a_e, k + ".iFill")) e.fill = std::atoi(s->c_str());
 				if (const auto* s = Get(a_e, k + ".bLinkLength")) e.linkLength = Flag(*s);

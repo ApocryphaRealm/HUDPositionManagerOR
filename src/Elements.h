@@ -81,6 +81,9 @@ namespace elements
 		// the render scale: the level gauge's bar grows to the right and its texts keep their size (the owner, 2026-09-29)
 		const char*                      sizeImage = nullptr;
 		const char*                      sizeImage2 = nullptr;   // a second image that follows the height only (the bar's highlight)
+		// child widgets (object properties) the Always-visible hold keeps shown: when the game hides one, the hold's show
+		// calls (holdOn) run again (the Equipped icons after an equip change, the owner 2026-09-29)
+		std::vector<const char*>         holdCheck;
 		// the hold (Always visible / the preview) raises every child's opacity and stops the fade-outs; off for a widget
 		// whose children are meant to be invisible until their moment (the damage arrows) - its hold calls show what should show
 		bool                             holdSubtree = true;
@@ -131,7 +134,7 @@ namespace elements
 			// the player's level as an instance of the game's own level-up gauge (its "Lvl [bar] 5" row, the skill text and the
 			// level-up icon hidden), created by this mod (createClass); "Level" is its tab. A plain text block came out black with
 			// no bar (the owner, 2026-09-29).
-			{ .key = "Level", .english = "Level", .classes = { L"HPM_LevelGauge_C" }, .names = { "HPM_LevelGauge" }, .createClass = "WBP_ModernHud_LevelUpGauge_C", .stretch = true, .sizeImage = "AltarProgressBar", .sizeImage2 = "AltarBarProgressHighlight" },
+			{ .key = "Level", .english = "Level", .classes = { L"HPM_LevelGauge_C" }, .names = { "HPM_LevelGauge" }, .fades = true, .createClass = "WBP_ModernHud_LevelUpGauge_C", .stretch = true, .sizeImage = "AltarProgressBar", .sizeImage2 = "AltarBarProgressHighlight" },
 			{ .key = "Info", .english = "Target name and value", .classes = { L"WBP_ModernHud_Info_C" }, .names = { "WBP_ModernHud_Info", "Info" },
 				.previewOn = { { L"ShowHide", { ArgBool("InShow", true) } }, { L"UpdateEmpty", { ArgBool("bIsEmpty", false) } }, { L"UpdateTargedItemName", { ArgText("InName", "HPM_PreviewItem", "Item name") } } },
 				.previewOff = { { L"UpdateEmpty", { ArgBool("bIsEmpty", true) } }, { L"ShowHide", { ArgBool("InShow", false) } } } },
@@ -146,7 +149,7 @@ namespace elements
 				.previewOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
 				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } },
 				.holdOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
-				.holdOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } }, .holdSubtree = false },
+				.holdOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } }, .holdCheck = { "Weapon", "Overencumbered" }, .holdSubtree = false },
 			{ .key = "Notifications", .english = "Pop-up notifications", .classes = { L"WBP_ModernPrefab_NotificationInHUD_C" }, .names = { "NotificationInHUD" }, .previewOn = { { L"Enable Notification", {} } } },
 			// ClearDisplay after the closing animation: the animation alone left the message on screen (the owner, 2026-09-29)
 			{ .key = "Tutorial", .english = "Tutorial messages", .classes = { L"WBP_ModernTutorialDisplay_C" }, .names = { "TutorialDisplay" },

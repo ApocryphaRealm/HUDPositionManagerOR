@@ -98,6 +98,23 @@ namespace page
 			return changed;
 		}
 
+		// An integer slider that moves exactly one unit per D-pad nudge whatever its range (the owner's standard for every
+		// slider, 2026-09-29): ImGui steps an integer slider by 1 % of its range under navigation once the range passes 100,
+		// and by one unit under its fine-tweak modifier - set around this one call, as for the percent sliders.
+		bool StepSlider(const char* a_label, int* a_value, int a_min, int a_max, const char* a_format = "%d")
+		{
+			ImGuiIO& io = ImGui::GetIO();
+			auto& l1 = io.KeysData[ImGuiKey_GamepadL1 - ImGuiKey_KeysData_OFFSET];
+			auto& ctrl = io.KeysData[ImGuiKey_ReservedForModCtrl - ImGuiKey_KeysData_OFFSET];
+			const bool l1Was = l1.Down, ctrlWas = ctrl.Down;
+			l1.Down = true;
+			ctrl.Down = true;
+			const bool changed = ImGui::SliderInt(a_label, a_value, a_min, a_max, a_format, ImGuiSliderFlags_NoInput);
+			l1.Down = l1Was;
+			ctrl.Down = ctrlWas;
+			return changed;
+		}
+
 		// a slider's range, frozen while it is held (per element; the page draws on one thread)
 		struct HeldRange
 		{
@@ -405,7 +422,7 @@ namespace page
 						Hint(TR("HPM_LinkLengthHint", "The bar grows with your maximum: it is 1.00x long at the points below, longer above them."));
 						int points = static_cast<int>(std::lround(e.pointsPerLength));
 						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-						if (ImGui::SliderInt((std::string(TR("HPM_PointsPerLength", "Points per full length")) + id + "p").c_str(), &points, static_cast<int>(settings::kPointsMin), static_cast<int>(settings::kPointsMax), "%d", ImGuiSliderFlags_NoInput)) {
+						if (StepSlider((std::string(TR("HPM_PointsPerLength", "Points per full length")) + id + "p").c_str(), &points, static_cast<int>(settings::kPointsMin), static_cast<int>(settings::kPointsMax))) {
 							e.pointsPerLength = static_cast<float>(points);
 							ch = true;
 						}
@@ -459,7 +476,9 @@ namespace page
 			Hint(TR("HPM_SnapHint", "On: when an edge of a widget you move comes close to an edge of another widget you have placed, it pulls onto that line, so two widgets meet or align exactly even when a slider tick overshoots. Off: widgets sit exactly where the sliders put them."));
 			if (v.snapEdges) {
 				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-				if (ImGui::SliderFloat((std::string(TR("HPM_SnapDistance", "Snap distance")) + "##snapdist").c_str(), &v.snapDistance, 1.0f, 30.0f, "%.0f")) {
+				int snap = static_cast<int>(std::lround(v.snapDistance));
+				if (StepSlider((std::string(TR("HPM_SnapDistance", "Snap distance")) + "##snapdist").c_str(), &snap, 1, 30)) {
+					v.snapDistance = static_cast<float>(snap);
 					settings::Update([&](settings::Values& s) { s.snapDistance = v.snapDistance; });
 				}
 				Hint(TR("HPM_SnapDistanceHint", "How close an edge has to come before it snaps, in screen units (the screen is 1080 tall)."));

@@ -65,7 +65,8 @@ namespace hud
 			int          fillApplied = 0;
 			ULONGLONG    fillCheckedAt = 0;
 			// the hold's calls (holdOn) run again when the retainer veil the game fades drops (the enemy bar, 2026-09-29)
-			ULONGLONG    holdCalledAt = 0, veilCheckedAt = 0;
+			ULONGLONG    holdCalledAt = 0, veilCheckedAt = 0, holdCheckedAt = 0;
+			float        followedOpacity = -1.0f;   // the created Level gauge: the opacity it was last given from the Health bar
 			UE::UObject* veilNear = nullptr;   // the nearest retainer box's material (above or below the element), looked up once
 			bool         veilLooked = false;
 			float        veilNow = 1.0f;
@@ -391,7 +392,16 @@ namespace hud
 		UE::UObject* CreateElement(UE::UObject* a_layout, const elements::Element& a_el, Tracked& a_t)
 		{
 			auto* cls = ClassByName(a_el.createClass);
-			auto* root = ObjProp(ObjProp(a_layout, "WidgetTree"), "RootWidget");
+			// the HUD's own layer (WBP_ModernHud_PrimaryLayout), reached through the Health widget's outers: on the root of all the
+			// game's UI the gauge showed at the main menu and over menus (the owner, 2026-09-29); the HUD layer is hidden with the HUD
+			UE::UObject* hudLayer = nullptr;
+			if (const int h = elements::IndexOf("Health"); h >= 0) {
+				for (UE::UObject* o = g_el[static_cast<std::size_t>(h)].widget.Get(); o && !hudLayer; o = o->GetOuter()) {
+					if (ue::NameOf(o->GetClass()) == "WBP_ModernHud_PrimaryLayout_C") hudLayer = o;
+				}
+			}
+			if (!hudLayer) return nullptr;   // not yet: the HUD is built later, and Find() asks again every 2 s
+			auto* root = ObjProp(ObjProp(hudLayer, "WidgetTree"), "RootWidget");
 			if (!cls || !root) return nullptr;
 			auto* lib = UE::StaticFindObject<UE::UClass>(nullptr, nullptr, L"/Script/UMG.WidgetBlueprintLibrary");
 			ue::Call create(lib ? lib->GetDefaultObject(false) : nullptr, L"Create");
@@ -1260,21 +1270,28 @@ namespace hud
 		// Minimap Menu (another of the owner's plugins) moves the location banner to sit by its map; while its export says so,
 		// this mod leaves the Location element's transform alone. The export is looked up once the DLL is loaded, at most
 		// every 5 s until then.
-		bool MinimapOwnsLocation()
+		// a Minimap Menu export by name (MinimapMenu_OwnsLocationPopup, MinimapMenu_OwnsCompass): looked up once the DLL is
+		// loaded, at most every 5 s until then; false while the DLL or the export is not there
+		struct MinimapExport
 		{
-			using Fn = bool (*)();
-			static Fn        fn = nullptr;
-			static ULONGLONG askedAt = 0;
-			static bool      logged = false;
-			if (!fn && GetTickCount64() - askedAt >= 5000) {
-				askedAt = GetTickCount64();
-				if (HMODULE m = ::GetModuleHandleW(L"MinimapMenu.dll")) {
-					fn = reinterpret_cast<Fn>(::GetProcAddress(m, "MinimapMenu_OwnsLocationPopup"));
-					if (!logged) { logged = true; logger::info("hud: Minimap Menu is loaded{}", fn ? " - it says when it places the location banner" : ", without MinimapMenu_OwnsLocationPopup"); }
+			const char* name;
+			bool (*fn)() = nullptr;
+			ULONGLONG askedAt = 0;
+			bool      logged = false;
+			bool Ask()
+			{
+				if (!fn && GetTickCount64() - askedAt >= 5000) {
+					askedAt = GetTickCount64();
+					if (HMODULE m = ::GetModuleHandleW(L"MinimapMenu.dll")) {
+						fn = reinterpret_cast<bool (*)()>(::GetProcAddress(m, name));
+						if (!logged) { logged = true; logger::info("hud: Minimap Menu is loaded{} {}", fn ? " - it answers" : ", without", name); }
+					}
 				}
+				return fn && fn();
 			}
-			return fn && fn();
-		}
+		};
+		bool MinimapOwnsLocation() { static MinimapExport e{ "MinimapMenu_OwnsLocationPopup" }; return e.Ask(); }
+		bool MinimapOwnsCompass() { static MinimapExport e{ "MinimapMenu_OwnsCompass" }; return e.Ask(); }
 
 		// Length / Height as a layout size (elements::Element::sizeImage): the named image's desired size overridden to its
 		// own size times the two factors, so its row grows one way (a HorizontalBox lays the rest out after it) and the
@@ -1298,8 +1315,8 @@ namespace hud
 			const auto set = [](UE::UObject* a_img, double a_wx, double a_wy) {
 				ue::Call c(a_img, L"SetDesiredSizeOverride");
 				const double v[2] = { a_wx, a_wy };
-				void* p = c.At("DesiredSizeOverride");
-				if (!p) p = c.At("InDesiredSizeOverride");
+				void* p = c.At("DesiredSize");   // UImage::SetDesiredSizeOverride(FVector2D DesiredSize), probed 2026-09-29
+				if (!p) p = c.At("DesiredSizeOverride");
 				if (p) { std::memcpy(p, v, sizeof(v)); c.Run(); }
 			};
 			set(img, wantX, wantY);
@@ -1335,6 +1352,20 @@ namespace hud
 					t.levelCheckedAt = GetTickCount64();
 					SetLevelGauge(w, t);
 				}
+				if (t.created && !t.held) {
+					// Always visible off: it shows and fades with the bars - the Health bar's image opacity, copied when it changes
+					float want = 1.0f;
+					if (const int h = elements::IndexOf("Health"); h >= 0) {
+						auto& ht = g_el[static_cast<std::size_t>(h)];
+						if (ht.fillImage && ue::IsLive(ht.fillImage)) want = Opacity(ht.fillImage);
+					}
+					if (std::abs(want - t.followedOpacity) > 0.01f) {
+						SetOpacity(w, want);
+						t.followedOpacity = want;
+					}
+				} else if (t.created) {
+					t.followedOpacity = -1.0f;   // held at 1 by the hold; followed again when it ends
+				}
 				Transform   now;
 				if (!ReadTransform(w, now)) {
 					continue;
@@ -1353,7 +1384,8 @@ namespace hud
 					t.haveBase = true;
 					t.wrote = false;
 				}
-				const bool minimapOwns = std::string_view(all[i].key) == "Location" && MinimapOwnsLocation();
+				const bool minimapOwns = (std::string_view(all[i].key) == "Location" && MinimapOwnsLocation()) ||
+				                         (std::string_view(all[i].key) == "Compass" && MinimapOwnsCompass());
 				auto [ox, oy] = a_s.enabled && !minimapOwns ? Offset(a_s, i) : std::pair<double, double>{ 0.0, 0.0 };
 				// the settings hold percent of the screen; the render transform takes layout units (1920 x 1080 at every
 				// DPI, wider on a wide screen - the measured viewport, or the designer's size until it is measured)
@@ -1469,6 +1501,17 @@ namespace hud
 						t.visBeforeHold = Visibility(w);
 						t.opacityBeforeHold = Opacity(w);
 						if (!preview && !all[i].holdOn.empty()) { t.holdCalledAt = GetTickCount64(); RunPreviewCalls(w, all[i].holdOn, all[i].key); }   // e.g. the breath bar filled
+					}
+					if (always && !preview && !all[i].holdOn.empty() && !all[i].holdCheck.empty() && GetTickCount64() - t.holdCheckedAt >= 1000) {
+						t.holdCheckedAt = GetTickCount64();
+						bool hidden = false;
+						for (const char* name : all[i].holdCheck) {
+							if (auto* c = ObjProp(w, name); c && (Visibility(c) == kHidden || Visibility(c) == kCollapsed)) hidden = true;
+						}
+						if (hidden) {   // the game hid it (an equip change): shown again
+							t.holdCalledAt = GetTickCount64();
+							RunPreviewCalls(w, all[i].holdOn, all[i].key);
+						}
 					}
 					if (always && !preview && !all[i].holdOn.empty() && GetTickCount64() - t.holdCalledAt >= 2000 && VeilOpacity(w, t) < 0.5f) {
 						t.holdCalledAt = GetTickCount64();   // the game faded its retainer veil again (the enemy bar): shown again

@@ -17,7 +17,7 @@ namespace settings
 		float       stretchX = 1.0f;       // [<key>] fLength - the scale along the element's width, on top of fScale (the bars)
 		float       stretchY = 1.0f;       // [<key>] fHeight - the same for its height
 		bool        hide = false;          // [<key>] bHide
-		bool        alwaysVisible = false; // [<key>] bAlwaysVisible - only for the elements the game fades on its own
+		bool        alwaysVisible = false; // [<key>] bAlwaysVisible - only for the elements the game fades on its own (the Level gauge: on when the file has no key)
 		std::string moveWith;              // [<key>] sMoveWith - another element's key, or empty
 		// the resource bars (2026-09-29): where the filled part is anchored - 0 the game's own, 1 left, 2 centre, 3 right
 		int         fill = 0;              // [<key>] iFill

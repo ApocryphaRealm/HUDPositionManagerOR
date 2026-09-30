@@ -972,7 +972,7 @@ ELEMENTS = [
     ("Health", True, True, True), ("Magicka", True, True, True), ("Fatigue", True, True, True), ("Breath", True, True, False), ("Compass", True, False, False),
     ("QuickWheel", False, False, False), ("Crosshair", False, False, False), ("WeaponIcon", False, False, False), ("MagicIcon", False, False, False),
     ("EffectIcons", False, False, False), ("EnemyHealth", False, True, False), ("SneakEye", False, False, False), ("LevelUp", False, False, False),
-    ("Level", False, False, False), ("Info", False, False, False), ("Subtitles", False, False, False), ("Location", False, False, False),
+    ("Level", True, False, False), ("Info", False, False, False), ("Subtitles", False, False, False), ("Location", False, False, False),
     ("DamageIndicators", True, False, False), ("Notifications", False, False, False), ("Tutorial", False, False, False),
 ]
 ini = [
@@ -998,7 +998,7 @@ ini = [
 for key, fades, bar, stat in ELEMENTS:
     ini += ["[%s]" % key, "fX=0", "fY=0", "fScale=1.00", "fLength=1.00", "fHeight=1.00", "bHide=0"]
     if fades:
-        ini.append("bAlwaysVisible=0")
+        ini.append("bAlwaysVisible=1" if key == "Level" else "bAlwaysVisible=0")
     ini.append("sMoveWith=")
     if bar:
         ini.append("; Fill from: 0 = the game's own, 1 = left, 2 = centre, 3 = right - the side the filled part is anchored to.")
