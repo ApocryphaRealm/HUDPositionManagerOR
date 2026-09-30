@@ -1,6 +1,6 @@
-HUD Position Manager for Oblivion
-=================================
-Version (unreleased - issued by the version gate once a build is seen working)
+HUD Position Manager
+====================
+Version 1.0.0
 
 Move, resize and hide every part of Oblivion Remastered's HUD live, from a settings page in Apocrypha
 Menu Framework - and keep the health, magicka and fatigue bars on screen instead of letting them fade.

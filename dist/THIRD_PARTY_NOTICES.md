@@ -1,6 +1,6 @@
 # Third-party components and their notices
 
-HUD Position Manager for Oblivion as a whole is GPL-3.0-or-later (`LICENSE`, `NOTICE.md`). Every component below is linked into
+HUD Position Manager as a whole is GPL-3.0-or-later (`LICENSE`, `NOTICE.md`). Every component below is linked into
 HUDPositionManager.dll; each is under a GPL-compatible licence, and its notice is reproduced as that licence requires. Versions
 are the ones this build pins.
 

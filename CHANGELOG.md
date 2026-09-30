@@ -3,7 +3,15 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then the work sits under Unreleased.
 
-## Unreleased - 2026-09-29 - untested, never run
+## 1.0.0 - 2026-09-30 - working
+
+### Release (2026-09-30)
+- The owner, 2026-09-30: "Finalize the HUD position manager as I'm satisfied with it right now" - recorded working
+  against the build he was playing (4930e2f), and "include my preset as an option": presets\ApocryphaRealm.ini is now
+  his current layout, taken from his live HUDPositionManager.ini in WritePreset's own format (every layout section;
+  [General]'s four layout keys), replacing the 29 Sep copy that 32 values had moved on from.
+- README and notices say the plain name (rule 10); the README carries the version.
+
 
 ### Added
 - the Equipped widget's third icon, the Apparel chest piece (armour about to break), in the preview and the
