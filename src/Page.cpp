@@ -278,14 +278,23 @@ namespace page
 			ImGui::SeparatorText(TR("HPM_GroupMembers", "Widgets that move as one"));
 			auto group = a_v.group;
 			bool changed = false;
+			std::vector<std::pair<std::size_t, float>> shift;   // (element, +1 joined / -1 left): its own offset keeps it in place
 			for (std::size_t i = 0; i < elements::Count(); ++i) {
 				const char* key = elements::All()[i].key;
 				bool on = group.Has(key);
 				if (Switch((std::string(ElementName(i)) + "##grp" + key).c_str(), &on)) {
 					if (on) group.members.emplace_back(key);
 					else std::erase(group.members, std::string(key));
+					shift.emplace_back(i, on ? 1.0f : -1.0f);
 					changed = true;
 				}
+			}
+			// the settings as they will be with this membership, for the range below
+			settings::Values now = a_v;
+			now.group = group;
+			for (const auto& [i, dir] : shift) {
+				now.elements[i].x -= dir * group.x;
+				now.elements[i].y -= dir * group.y;
 			}
 			ImGui::Spacing();
 			if (group.members.size() < 2) {
@@ -297,11 +306,11 @@ namespace page
 					for (std::size_t i = 0; i < elements::Count(); ++i) {
 						if (!group.Has(elements::All()[i].key) || i >= a_all.size() || !a_all[i].found) continue;
 						const auto& st = a_all[i];
-						const auto& e = a_v.elements[i];
+						const auto& e = now.elements[i];
 						const double unitW = st.viewW > 0.0 ? st.viewW : 1920.0, unitH = st.viewH > 0.0 ? st.viewH : 1080.0;
-						const auto [withX, withY] = hud::MoveWithOffset(a_v, i);   // the group's offset is in it
+						const auto [withX, withY] = hud::MoveWithOffset(now, i);   // the group's offset is in it
 						double lo, hi, tlo, thi;
-						if (!hud::OffsetRange(a_all, i, a_v, withX / 100.0 * unitW, withY / 100.0 * unitH, e.x / 100.0 * unitW, e.y / 100.0 * unitH, lo, hi, tlo, thi)) continue;
+						if (!hud::OffsetRange(a_all, i, now, withX / 100.0 * unitW, withY / 100.0 * unitH, e.x / 100.0 * unitW, e.y / 100.0 * unitH, lo, hi, tlo, thi)) continue;
 						// the member's own slider may go [lo, hi]; the group may move by what is left on each side of its own value
 						minX = std::max(minX, group.x + lo / unitW * 100.0 - e.x);
 						maxX = std::min(maxX, group.x + hi / unitW * 100.0 - e.x);
@@ -316,8 +325,12 @@ namespace page
 				auto& held = g_heldGroup;
 				if (held.x) { minX = held.minX; maxX = held.maxX; } else { held.minX = minX; held.maxX = maxX; }
 				if (held.y) { minY = held.minY; maxY = held.maxY; } else { held.minY = minY; held.maxY = maxY; }
-				group.x = std::clamp(group.x, static_cast<float>(minX), static_cast<float>(maxX));
-				group.y = std::clamp(group.y, static_cast<float>(minY), static_cast<float>(maxY));
+				// the shared offset is never clamped here: a clamp on a tick moved every member ("fleeing", 2026-09-29) - the
+				// range always holds the current value, and only the sliders move it
+				minX = std::min(minX, static_cast<double>(group.x));
+				maxX = std::max(maxX, static_cast<double>(group.x));
+				minY = std::min(minY, static_cast<double>(group.y));
+				maxY = std::max(maxY, static_cast<double>(group.y));
 				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
 				changed |= PercentSlider((std::string(TR("HPM_MoveX", "Move left / right")) + "##groupx").c_str(), &group.x, minX, maxX);
 				held.x = ImGui::IsItemActive();
@@ -331,7 +344,13 @@ namespace page
 				}
 			}
 			if (changed) {
-				settings::Update([&](settings::Values& s) { s.group = group; });
+				settings::Update([&](settings::Values& s) {
+					s.group = group;
+					for (const auto& [i, dir] : shift) {   // joined: its own offset less the shared one; left: plus it
+						s.elements[i].x -= dir * group.x;
+						s.elements[i].y -= dir * group.y;
+					}
+				});
 			}
 
 			ImGui::Spacing();
