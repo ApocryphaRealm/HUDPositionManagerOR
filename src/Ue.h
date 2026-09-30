@@ -41,6 +41,10 @@ namespace ue
 	// For an object read THIS frame from a live owner: reads a_o's own index, so never for a pointer kept from an
 	// earlier frame (a freed object's index is garbage - Improved Wheel Menu crashed in exactly that read, 09:15).
 	bool IsLive(UE::UObject* a_o);
+	// an object being destroyed, garbage or unreachable: never a world context (2026-09-30, Minimap Menu's crash on quit)
+	bool Dying(UE::UObject* a_o);
+	// ProcessEvent inside __try/__except: a call that faults (a world torn down under its context) returns false
+	bool GuardedProcessEvent(UE::UObject* a_obj, UE::UFunction* a_fn, void* a_params);
 
 	// A pointer kept across frames with the object-array slot it was found in. Get() asks the SLOT whether it still
 	// holds that object, and then that the object there still has the class and name seen at Set(): a freed widget's
@@ -103,6 +107,11 @@ namespace ue
 			}
 			return false;
 		}
+		bool RunGuarded()
+		{
+			return m_fn && m_obj && GuardedProcessEvent(m_obj, m_fn, m_params.data());
+		}
+
 		bool Run()
 		{
 			if (!m_fn || !m_obj) {

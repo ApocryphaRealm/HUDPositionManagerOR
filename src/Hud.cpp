@@ -425,10 +425,10 @@ namespace hud
 			if (!cls || !root) return nullptr;
 			auto* lib = UE::StaticFindObject<UE::UClass>(nullptr, nullptr, L"/Script/UMG.WidgetBlueprintLibrary");
 			ue::Call create(lib ? lib->GetDefaultObject(false) : nullptr, L"Create");
-			if (!create) return nullptr;
+			if (!create || ue::Dying(a_layout)) return nullptr;
 			create.Set("WorldContextObject", a_layout);
 			create.Set("WidgetType", cls);
-			create.Run();
+			if (!create.RunGuarded()) return nullptr;
 			auto** made = static_cast<UE::UObject**>(create.At("ReturnValue"));
 			auto* w = made ? *made : nullptr;
 			if (!w) return nullptr;
@@ -921,7 +921,7 @@ namespace hud
 			toView.Set("WorldContextObject", a_w);
 			const double zero[2] = { 0.0, 0.0 };
 			if (void* lc = toView.At("LocalCoordinate")) std::memcpy(lc, zero, sizeof(zero));
-			if (!toView.Run() || !size.Run()) return false;
+			if (ue::Dying(a_w) || !toView.RunGuarded() || !size.RunGuarded()) return false;
 			const auto* vp = static_cast<const double*>(toView.At("ViewportPosition"));
 			const auto* sz = static_cast<const double*>(size.At("ReturnValue"));
 			if (!vp || !sz) return false;
@@ -1002,7 +1002,7 @@ namespace hud
 			}
 			view.Set("WorldContextObject", a_w);
 			dpi.Set("WorldContextObject", a_w);
-			if (!toView.Run() || !size.Run() || !view.Run() || !dpi.Run()) {
+			if (ue::Dying(a_w) || !toView.RunGuarded() || !size.RunGuarded() || !view.RunGuarded() || !dpi.RunGuarded()) {
 				return false;
 			}
 			const auto* scalePtr = static_cast<const float*>(dpi.At("ReturnValue"));
@@ -1575,10 +1575,10 @@ namespace hud
 			void* ctx = c ? c.At("WorldContextObject") : nullptr;
 			void* name = c ? c.At("Filename") : nullptr;
 			void* ret = c ? c.At("ReturnValue") : nullptr;
-			if (!ctx || !name || !ret) return nullptr;
+			if (!ctx || !name || !ret || ue::Dying(a_context)) return nullptr;
 			*static_cast<UE::UObject**>(ctx) = a_context;
 			new (name) UE::FString(a_file.wstring().c_str());
-			c.Run();
+			if (!c.RunGuarded()) return nullptr;
 			return *static_cast<UE::UObject**>(ret);
 		}
 
