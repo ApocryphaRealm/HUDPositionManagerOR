@@ -72,10 +72,10 @@ namespace elements
 		const char*                      createClass = nullptr;
 		// a resource bar: "Fill from" on the Combined widgets tab (2026-09-29)
 		bool                             bar = false;
-		// Length and Height beside Size on its tab: the bars, the level gauge, the compass (the owner, 2026-09-29)
-		bool                             stretch = false;
 		// a bar whose length may follow the player's maximum of that resource ("Length follows the resource")
 		bool                             stat = false;
+		// Length and Height beside Size on its tab: the bars, the level gauge, the compass (the owner, 2026-09-29)
+		bool                             stretch = false;
 		// the hold (Always visible / the preview) raises every child's opacity and stops the fade-outs; off for a widget
 		// whose children are meant to be invisible until their moment (the damage arrows) - its hold calls show what should show
 		bool                             holdSubtree = true;
