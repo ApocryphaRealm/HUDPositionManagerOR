@@ -354,8 +354,10 @@ namespace hud
 			auto** slotp = static_cast<UE::UObject**>(add.At("ReturnValue"));
 			if (auto* slot = slotp ? *slotp : nullptr) {
 				for (const auto& [fn, arg] : std::initializer_list<std::pair<const wchar_t*, const char*>>{ { L"SetHorizontalAlignment", "InHorizontalAlignment" }, { L"SetVerticalAlignment", "InVerticalAlignment" } }) {
-					ue::Call set(slot, fn);   // top-left: the offset moves it from there
-					if (void* p = set.At(arg)) { *static_cast<std::uint8_t*>(p) = 0; set.Run(); }
+					// top-left: the offset moves it from there. EHorizontalAlignment / EVerticalAlignment: 0 is FILL (the text's
+					// geometry was the whole screen and its sliders had no range, 2026-09-29), 1 is Left / Top
+					ue::Call set(slot, fn);
+					if (void* p = set.At(arg)) { *static_cast<std::uint8_t*>(p) = 1; set.Run(); }
 				}
 			}
 			SetVisibility(w, kSelfHitTestInvisible);
