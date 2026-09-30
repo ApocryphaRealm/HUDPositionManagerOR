@@ -87,6 +87,9 @@ namespace elements
 		// the hold (Always visible / the preview) raises every child's opacity and stops the fade-outs; off for a widget
 		// whose children are meant to be invisible until their moment (the damage arrows) - its hold calls show what should show
 		bool                             holdSubtree = true;
+		// an element this mod BUILDS from plain UMG widgets on the HUD layer: "damage" (the damage direction indicator) or
+		// "sneak" (the sneak detection indicator), 2026-09-30
+		const char*                      createNative = nullptr;
 	};
 
 	inline const std::vector<Element>& All()
@@ -129,6 +132,8 @@ namespace elements
 				.holdOn = { { L"HandleNPCVisibility", { ArgBool("InNewVisibility", true) }, L"WBP_ModernTopStats_C" } }, .holdOff = { { L"FadeNPCOut", {}, L"WBP_ModernTopStats_C" } }, .bar = true, .stretch = true },
 			{ .key = "SneakEye", .english = "Sneak eye", .classes = { L"WBP_ModernHud_SneakEye_C" }, .names = { "SneakEye" },
 				.previewOn = { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", true) } }, { L"Update Sneak Level", { ArgDouble("InSneakLevel", 0.5) } } }, .previewOff = { { L"UpdateSneakingVisibility", { ArgBool("InSneaking", false) } } } },
+			// built by this mod: while sneaking, a diamond toward each hostile nearby, coloured by how detected you are
+			{ .key = "SneakDetection", .english = "Sneak detection indicator", .classes = { L"HPM_SneakDetection" }, .names = { "HPM_SneakDetection" }, .holdSubtree = false, .createNative = "sneak" },
 			{ .key = "LevelUp", .english = "Level-up gauge", .classes = { L"WBP_ModernHud_LevelUpGauge_C" }, .names = { "LevelUpGauge" },
 				.previewOn = { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", true) } } }, .previewOff = { { L"ToggleLevelUpIconVisibility", { ArgBool("Visible", false) } } } },
 			// the player's level as an instance of the game's own level-up gauge (its "Lvl [bar] 5" row, the skill text and the
@@ -150,6 +155,8 @@ namespace elements
 				.previewOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } },
 				.holdOn = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", true) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", true), ArgDouble("InHealth", 0.3) } } },
 				.holdOff = { { L"UpdateOverencumberedVisibility", { ArgBool("bIsOverencumbered", false) } }, { L"Update Weapon Damage Visibility", { ArgBool("InVisible", false), ArgDouble("InHealth", 1.0) } } }, .holdCheck = { "Weapon", "Overencumbered" }, .holdSubtree = false },
+			// built by this mod (the game has no such widget): red arcs toward whoever hit you
+			{ .key = "DamageDirection", .english = "Damage direction indicator", .classes = { L"HPM_DamageDirection" }, .names = { "HPM_DamageDirection" }, .holdSubtree = false, .createNative = "damage" },
 			{ .key = "Notifications", .english = "Pop-up notifications", .classes = { L"WBP_ModernPrefab_NotificationInHUD_C" }, .names = { "NotificationInHUD" }, .previewOn = { { L"Enable Notification", {} } } },
 			// ClearDisplay after the closing animation: the animation alone left the message on screen (the owner, 2026-09-29)
 			{ .key = "Tutorial", .english = "Tutorial messages", .classes = { L"WBP_ModernTutorialDisplay_C" }, .names = { "TutorialDisplay" },

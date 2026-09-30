@@ -923,6 +923,32 @@ NEW = {
         "Teraz umieszcza go Minimap Menu: suwaki poniżej czekają, aż minimapa go puści.",
         "Teď ho umisťuje Minimap Menu: posuvníky níže čekají, až ho minimapa pustí.",
     ],
+    "HPM_El_DamageDirection": [
+        "Damage direction indicator",
+        "被弾方向インジケーター",
+        "피격 방향 표시",
+        "受击方向指示",
+        "Индикатор направления урона",
+        "Trefferrichtungsanzeige",
+        "Indicateur de direction des dégâts",
+        "Indicador de dirección del daño",
+        "Indicatore di direzione del danno",
+        "Wskaźnik kierunku obrażeń",
+        "Ukazatel směru zásahu",
+    ],
+    "HPM_El_SneakDetection": [
+        "Sneak detection indicator",
+        "隠密発見インジケーター",
+        "은신 탐지 표시",
+        "潜行侦测指示",
+        "Индикатор обнаружения",
+        "Schleich-Entdeckungsanzeige",
+        "Indicateur de détection",
+        "Indicador de detección",
+        "Indicatore di rilevamento",
+        "Wskaźnik wykrycia",
+        "Ukazatel odhalení",
+    ],
 }
 
 
@@ -973,7 +999,7 @@ ELEMENTS = [
     ("QuickWheel", False, False, False), ("Crosshair", False, False, False), ("WeaponIcon", False, False, False), ("MagicIcon", False, False, False),
     ("EffectIcons", False, False, False), ("EnemyHealth", False, True, False), ("SneakEye", False, False, False), ("LevelUp", False, False, False),
     ("Level", True, False, False), ("Info", False, False, False), ("Subtitles", False, False, False), ("Location", False, False, False),
-    ("DamageIndicators", True, False, False), ("Notifications", False, False, False), ("Tutorial", False, False, False),
+    ("DamageIndicators", True, False, False), ("DamageDirection", False, False, False), ("SneakDetection", False, False, False), ("Notifications", False, False, False), ("Tutorial", False, False, False),
 ]
 ini = [
     "; HUD Position Manager for Oblivion - settings. The settings page in Apocrypha Menu Framework writes this file;",

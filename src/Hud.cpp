@@ -16,8 +16,21 @@ namespace hud
 		// ESlateVisibility
 		constexpr std::uint8_t kVisible = 0, kCollapsed = 1, kHidden = 2, kSelfHitTestInvisible = 4;
 
+		struct IndicatorFlash   // a damage arc: its direction relative to the view, when it was hit, how strong
+		{
+			float     angle = 0.0f;
+			ULONGLONG at = 0;
+			float     strength = 1.0f;
+		};
+
 		struct Tracked
 		{
+			// the indicators (createNative): their marks, and what each was last given
+			std::vector<UE::UObject*>   marks;
+			std::vector<float>          markOp, markAng, markColour, markSize;
+			float                       lastHealth = -1.0f;
+			std::vector<IndicatorFlash> flashes;
+			ULONGLONG                   hitLoggedAt = 0;
 			ue::Handle widget;
 			std::string name;               // instance and class, for the page and the log
 			bool        haveBase = false;
@@ -84,6 +97,7 @@ namespace hud
 		std::vector<Tracked> g_el(elements::Count());
 		void SetVisibility(UE::UObject* a_w, std::uint8_t a_v);   // defined below; ReleaseHold uses them first
 		UE::UObject* DynamicMaterial(UE::UObject* a_image);         // defined below (the fill); the level gauge uses it first
+		UE::UObject* CreateIndicator(const elements::Element& a_el, struct Tracked& a_t);   // defined below (the two indicators)
 		int HoldSubtreeVisible(UE::UObject* a_widget, int a_depth, bool& a_stoppedFade, Tracked* a_t = nullptr);
 		void SetOpacity(UE::UObject* a_w, float a_o);
 		ue::Handle           g_layout;
@@ -456,11 +470,11 @@ namespace hud
 					++found;
 					continue;
 				}
-				if (!widget && all[i].createClass) {
+				if (!widget && (all[i].createClass || all[i].createNative)) {
 					if (t.created && t.widget.Get()) { ++found; continue; }   // ours, still alive
 					Tracked fresh{};
-					widget = CreateElement(a_layout, all[i], fresh);
-					if (widget) { t = fresh; t.widget.Set(widget); t.name = std::format("{} ({}, made by this mod)", all[i].names[0], all[i].createClass); ++found; }
+					widget = all[i].createNative ? CreateIndicator(all[i], fresh) : CreateElement(a_layout, all[i], fresh);
+					if (widget) { t = fresh; t.widget.Set(widget); t.name = std::format("{} ({}, made by this mod)", all[i].names[0], all[i].createNative ? "plain UMG widgets" : all[i].createClass); ++found; }
 					else { missing += std::string(missing.empty() ? "" : ", ") + all[i].key; }
 					continue;
 				}
@@ -1339,6 +1353,254 @@ namespace hud
 			logger::debug("hud: {} - its {} sized {:.0f} x {:.0f}", a_el.key, a_el.sizeImage, wantX, wantY);
 		}
 
+		// ---- the two indicators this mod BUILDS (2026-09-30) --------------------------------------------------------
+		// The engine's object constructor, fault-guarded: a construction that faults returns nothing instead of taking the
+		// game down (the parameters live in the caller, so this frame has nothing to unwind).
+		UE::UObject* ConstructGuarded(const UE::FStaticConstructObjectParameters& a_p)
+		{
+			__try {
+				return UE::StaticConstructObject_Internal(a_p);
+			} __except (EXCEPTION_EXECUTE_HANDLER) {
+				return nullptr;
+			}
+		}
+
+		UE::UObject* NewWidget(const wchar_t* a_class, UE::UObject* a_outer)
+		{
+			auto* cls = ue::Class(a_class);
+			if (!cls || !a_outer) return nullptr;
+			UE::FStaticConstructObjectParameters p(cls);
+			p.outer = a_outer;
+			return ConstructGuarded(p);
+		}
+
+		// the HUD's own layer (WBP_ModernHud_PrimaryLayout), through the Health widget's outers
+		UE::UObject* HudLayer()
+		{
+			const int h = elements::IndexOf("Health");
+			for (UE::UObject* o = h >= 0 ? g_el[static_cast<std::size_t>(h)].widget.Get() : nullptr; o; o = o->GetOuter()) {
+				if (ue::NameOf(o->GetClass()) == "WBP_ModernHud_PrimaryLayout_C") return o;
+			}
+			return nullptr;
+		}
+
+		// a child added to a panel, its slot aligned (EHorizontalAlignment / EVerticalAlignment: 2 = centre)
+		UE::UObject* AddAligned(UE::UObject* a_panel, UE::UObject* a_child, std::uint8_t a_h, std::uint8_t a_v)
+		{
+			ue::Call add(a_panel, L"AddChild");
+			if (!add || !add.At("Content")) return nullptr;
+			add.Set("Content", a_child);
+			add.Run();
+			auto** sp = static_cast<UE::UObject**>(add.At("ReturnValue"));
+			auto* slot = sp ? *sp : nullptr;
+			if (slot) {
+				for (const auto& [fn, arg, v] : std::initializer_list<std::tuple<const wchar_t*, const char*, std::uint8_t>>{
+						 { L"SetHorizontalAlignment", "InHorizontalAlignment", a_h }, { L"SetVerticalAlignment", "InVerticalAlignment", a_v } }) {
+					ue::Call set(slot, fn);
+					if (void* p = set.At(arg)) { *static_cast<std::uint8_t*>(p) = v; set.Run(); }
+				}
+			}
+			return slot;
+		}
+
+		void SetImageSize(UE::UObject* a_img, double a_w, double a_h) { Call2(a_img, L"SetDesiredSizeOverride", "DesiredSize", a_w, a_h); }
+
+		void SetTint(UE::UObject* a_img, float a_r, float a_g, float a_b)
+		{
+			ue::Call c(a_img, L"SetColorAndOpacity");
+			const float v[4] = { a_r, a_g, a_b, 1.0f };
+			if (void* p = c.At("InColorAndOpacity")) { std::memcpy(p, v, sizeof(v)); c.Run(); }
+		}
+
+		void SetAngle(UE::UObject* a_w, float a_deg)
+		{
+			ue::Call c(a_w, L"SetRenderTransformAngle");
+			if (c && c.At("Angle")) { c.Set<float>("Angle", a_deg); c.Run(); }
+		}
+
+		UE::UObject* CreateIndicator(const elements::Element& a_el, Tracked& a_t)
+		{
+			auto* hud = HudLayer();
+			auto* tree = ObjProp(hud, "WidgetTree");
+			auto* root = ObjProp(tree, "RootWidget");
+			if (!tree || !root) return nullptr;   // not yet: Find() asks again every 2 s
+			auto* box = NewWidget(L"/Script/UMG.Overlay", tree);
+			if (!box) { logger::warn("hud: {} - the engine made no Overlay; the indicator is not built", a_el.key); return nullptr; }
+			if (!AddAligned(root, box, 2, 2)) return nullptr;
+			const bool damage = std::string_view(a_el.createNative) == "damage";
+			// a transparent image gives the box its size (the ring's), so it can be placed and measured like any element
+			if (auto* area = NewWidget(L"/Script/UMG.Image", tree)) {
+				AddAligned(box, area, 2, 2);
+				SetImageSize(area, damage ? 340.0 : 260.0, damage ? 340.0 : 260.0);
+				SetOpacity(area, 0.0f);
+			}
+			for (int k = 0; k < 8; ++k) {
+				auto* m = NewWidget(L"/Script/UMG.Image", tree);
+				if (!m) break;
+				AddAligned(box, m, 2, 2);
+				if (damage) { SetImageSize(m, 120.0, 12.0); SetTint(m, 0.86f, 0.07f, 0.04f); }
+				else { SetImageSize(m, 20.0, 20.0); SetTint(m, 1.0f, 1.0f, 1.0f); SetAngle(m, 45.0f); }
+				SetOpacity(m, 0.0f);
+				a_t.marks.push_back(m);
+			}
+			a_t.markOp.assign(a_t.marks.size(), 0.0f);
+			a_t.markAng.assign(a_t.marks.size(), -999.0f);
+			a_t.markColour.assign(a_t.marks.size(), damage ? 1.0f : 0.0f);
+			a_t.markSize.assign(a_t.marks.size(), 20.0f);
+			SetVisibility(box, kSelfHitTestInvisible);
+			a_t.created = true;
+			logger::info("hud: {} built on the HUD layer ({} marks)", a_el.key, a_t.marks.size());
+			return box;
+		}
+
+		// the game's HUD numbers the indicators read, once per frame at most
+		struct IndicatorData
+		{
+			bool                               ok = false;
+			float                              health = -1.0f, heading = 0.0f, detection = 0.0f;
+			bool                               sneaking = false;
+			std::vector<std::pair<float, float>> hostiles;   // (distance cm, bearing deg)
+		};
+
+		UE::UObject* LiveOf(ue::Handle& a_h, ULONGLONG& a_scanAt, const wchar_t* a_class)
+		{
+			auto* o = a_h.Get();
+			if (!o && GetTickCount64() - a_scanAt >= 5000) {
+				a_scanAt = GetTickCount64();
+				o = ue::FirstOf(ue::Class(a_class));
+				a_h.Set(o);
+			}
+			return o;
+		}
+
+		IndicatorData ReadIndicatorData()
+		{
+			static ue::Handle mainVm, reticleVm, vignette;
+			static ULONGLONG  mainAt = 0, reticleAt = 0, vignetteAt = 0;
+			IndicatorData d;
+			auto* vm = LiveOf(mainVm, mainAt, L"/Script/Altar.VHUDMainViewModel");
+			if (!vm) return d;
+			auto* cls = vm->GetClass();
+			if (const float* p = ue::At<float>(vm, Off(cls, "HealthBarValue"))) d.health = *p;
+			if (const float* p = ue::At<float>(vm, Off(cls, "CompassDirectionValue"))) d.heading = *p;
+			struct Arr { const float* data; std::int32_t num, max; };
+			if (const auto* a = ue::At<Arr>(vm, Off(cls, "HostileData")); a && a->data && a->num > 0 && a->num < 256) {
+				for (std::int32_t i = 0; i < a->num; ++i) d.hostiles.emplace_back(a->data[i * 2], a->data[i * 2 + 1]);   // FHostileData {Distance, Angle}
+			}
+			if (auto* rv = LiveOf(reticleVm, reticleAt, L"/Script/Altar.VHUDReticleViewModel")) {
+				if (const float* p = ue::At<float>(rv, Off(rv->GetClass(), "SneakDetectionLevel"))) d.detection = std::clamp(*p, 0.0f, 1.0f);
+			}
+			// sneaking: the HUD vignette's own flag (WBP_Modern_Hud_Vignette on the HUD layer's root)
+			auto* vg = vignette.Get();
+			if (!vg && GetTickCount64() - vignetteAt >= 5000) {
+				vignetteAt = GetTickCount64();
+				if (auto* root = ObjProp(ObjProp(HudLayer(), "WidgetTree"), "RootWidget"); root && PanelClass() && root->GetClass()->IsChildOf(PanelClass())) {
+					auto* slots = ue::At<RawArray>(root, Off(root->GetClass(), "Slots"));
+					for (std::int32_t i = 0; slots && slots->data && i < slots->num && i < 64 && !vg; ++i) {
+						auto* c = ObjProp(slots->data[i], "Content");
+						if (c && ue::NameOf(c->GetClass()) == "WBP_Modern_Hud_Vignette_C") vg = c;
+					}
+				}
+				vignette.Set(vg);
+			}
+			if (vg) {
+				if (const bool* p = ue::At<bool>(vg, Off(vg->GetClass(), "bSneaking"))) d.sneaking = *p;
+			}
+			d.ok = true;
+			return d;
+		}
+
+		float RelativeBearing(float a_bearing, float a_heading)
+		{
+			float r = std::fmod(a_bearing - a_heading, 360.0f);
+			if (r > 180.0f) r -= 360.0f;
+			if (r <= -180.0f) r += 360.0f;
+			return r;
+		}
+
+		// one mark on the ring: its direction (0 = straight ahead, + clockwise), opacity, colour (0 white .. 1 red) and size
+		void PlaceMark(Tracked& a_t, std::size_t a_k, bool a_damage, float a_angle, float a_op, float a_colour, float a_size)
+		{
+			auto* m = a_t.marks[a_k];
+			if (!ue::IsLive(m)) return;
+			const float radius = a_damage ? 150.0f : 110.0f;
+			if (a_op > 0.0f && std::abs(a_angle - a_t.markAng[a_k]) > 0.2f) {
+				const double rad = a_angle * std::numbers::pi / 180.0;
+				Call2(m, L"SetRenderTranslation", "Translation", radius * std::sin(rad), -radius * std::cos(rad));
+				SetAngle(m, a_damage ? a_angle : 45.0f);   // an arc lies along the ring; a diamond stays a diamond
+				a_t.markAng[a_k] = a_angle;
+			}
+			if (!a_damage && std::abs(a_colour - a_t.markColour[a_k]) > 0.02f) {
+				// white (hidden) -> yellow (half) -> red (detected)
+				const float c = std::clamp(a_colour, 0.0f, 1.0f);
+				const float r = c < 0.5f ? 1.0f : 1.0f - (c - 0.5f) * 0.2f;
+				const float g = c < 0.5f ? 1.0f - c * 0.3f : 0.85f - (c - 0.5f) * 1.6f;
+				const float b = c < 0.5f ? 1.0f - c * 1.6f : 0.2f - (c - 0.5f) * 0.3f;
+				SetTint(m, r, std::max(g, 0.05f), std::max(b, 0.03f));
+				a_t.markColour[a_k] = a_colour;
+			}
+			if (!a_damage && std::abs(a_size - a_t.markSize[a_k]) > 0.5f) {
+				SetImageSize(m, a_size, a_size);
+				a_t.markSize[a_k] = a_size;
+			}
+			if (std::abs(a_op - a_t.markOp[a_k]) > 0.01f) {
+				SetOpacity(m, a_op);
+				a_t.markOp[a_k] = a_op;
+			}
+		}
+
+		void UpdateIndicator(UE::UObject* a_w, Tracked& a_t, const elements::Element& a_el, bool a_gameplay, bool a_preview)
+		{
+			(void)a_w;
+			if (a_t.marks.empty()) return;
+			const bool damage = std::string_view(a_el.createNative) == "damage";
+			const ULONGLONG now = GetTickCount64();
+			const IndicatorData d = ReadIndicatorData();
+			std::vector<std::tuple<float, float, float, float>> show;   // (angle, opacity, colour, size)
+			if (a_preview) {
+				if (damage) show = { { -60.0f, 0.85f, 1.0f, 20.0f }, { 5.0f, 0.85f, 1.0f, 20.0f }, { 125.0f, 0.85f, 1.0f, 20.0f } };
+				else show = { { -50.0f, 0.9f, 0.1f, 20.0f }, { 30.0f, 0.9f, 0.55f, 20.0f }, { 150.0f, 0.95f, 1.0f, 28.0f } };
+			} else if (damage) {
+				if (d.ok && a_gameplay && a_t.lastHealth >= 0.0f && d.health >= 0.0f && d.health < a_t.lastHealth - 0.002f) {
+					const float drop = a_t.lastHealth - d.health;
+					int n = 0;
+					std::string seen;
+					for (const auto& [dist, bearing] : d.hostiles) {
+						if (dist > 3000.0f) continue;
+						const float rel = RelativeBearing(bearing, d.heading);
+						a_t.flashes.push_back({ rel, now, std::clamp(0.55f + drop * 4.0f, 0.55f, 1.0f) });
+						if (seen.size() < 200) seen += std::format(" [bearing {:.0f}, distance {:.0f} cm -> {:.0f}]", bearing, dist, rel);
+						++n;
+					}
+					if (now - a_t.hitLoggedAt >= 1000) {   // the numbers behind the arcs, at most once a second
+						a_t.hitLoggedAt = now;
+						logger::info("damage indicator: hit (health {:.3f} -> {:.3f}), view bearing {:.0f}, {} hostile(s) within 30 m{}", a_t.lastHealth, d.health, d.heading, n, seen);
+					}
+					while (a_t.flashes.size() > a_t.marks.size()) a_t.flashes.erase(a_t.flashes.begin());
+				}
+				if (d.ok && d.health >= 0.0f) a_t.lastHealth = d.health;
+				std::erase_if(a_t.flashes, [&](const IndicatorFlash& f) { return now - f.at >= 1500; });
+				for (const auto& f : a_t.flashes) {
+					const float age = static_cast<float>(now - f.at) / 1500.0f;
+					show.emplace_back(f.angle, f.strength * (1.0f - age), 1.0f, 20.0f);
+				}
+			} else if (d.ok && a_gameplay && d.sneaking) {
+				const bool detected = d.detection >= 0.99f;
+				for (const auto& [dist, bearing] : d.hostiles) {
+					if (dist > 4000.0f || show.size() >= a_t.marks.size()) continue;
+					show.emplace_back(RelativeBearing(bearing, d.heading), 0.9f, d.detection, detected ? 28.0f : 20.0f);
+				}
+			}
+			for (std::size_t k = 0; k < a_t.marks.size(); ++k) {
+				if (k < show.size()) {
+					const auto& [ang, op, col, size] = show[k];
+					PlaceMark(a_t, k, damage, ang, op, col, size);
+				} else {
+					PlaceMark(a_t, k, damage, a_t.markAng[k], 0.0f, a_t.markColour[k], a_t.markSize[k]);
+				}
+			}
+		}
+
 		void Apply(const settings::Values& a_s, bool a_gameplay)
 		{
 			const auto& all = elements::All();
@@ -1571,6 +1833,7 @@ namespace hud
 					t.forced = false;
 				}
 
+				if (all[i].createNative) UpdateIndicator(w, t, all[i], a_gameplay && !hide, a_s.preview && a_s.enabled && !hide);
 				st.found = true;
 				st.widget = t.name;
 				st.baseX = t.baseX;

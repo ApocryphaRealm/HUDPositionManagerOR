@@ -171,6 +171,8 @@ namespace page
 			if (k == "Notifications") return TR("HPM_El_Notifications", "Pop-up notifications");
 			if (k == "Tutorial") return TR("HPM_El_Tutorial", "Tutorial messages");
 			if (k == "QuickWheel") return TR("HPM_El_QuickWheel", "Quick wheel");
+			if (k == "DamageDirection") return TR("HPM_El_DamageDirection", "Damage direction indicator");
+			if (k == "SneakDetection") return TR("HPM_El_SneakDetection", "Sneak detection indicator");
 			return a_i < elements::Count() ? elements::All()[a_i].english : "";
 		}
 
