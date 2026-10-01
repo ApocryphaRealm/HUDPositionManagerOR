@@ -1776,6 +1776,17 @@ namespace hud
 		// bVisible AND its widget (WBP_ModernMenu_SleepWait_C) is live, in a parent, not hidden and not faded out - the view
 		// model alone read bVisible true at an idle capture. Read four times a second; the widget is searched for only while
 		// the view model says it is up, at most every second.
+		// the wait menu is a CommonUI activatable widget: the game's layer stack shows it through Slate, so its UMG Slot is
+		// null while it is up (read in game 2026-10-01, menu open: Slot null, bIsActive true - Sundial Wait Menu had the same
+		// miss) - bIsActive says it is the menu in use; a Slot still counts
+		bool WaitMenuPlaced(UE::UObject* a_m)
+		{
+			if (!a_m) return false;
+			if (ObjProp(a_m, "Slot")) return true;
+			const bool* active = ue::At<bool>(a_m, Off(a_m->GetClass(), "bIsActive"));
+			return active && *active;
+		}
+
 		bool WaitMenuUp()
 		{
 			static ue::Handle vm, menu;
@@ -1794,7 +1805,7 @@ namespace hud
 			bool now = false;
 			if (vmVisible && *vmVisible) {
 				auto* m = menu.Get();
-				if ((!m || !ObjProp(m, "Slot")) && nowMs - menuScanAt >= 1000) {
+				if ((!m || !WaitMenuPlaced(m)) && nowMs - menuScanAt >= 1000) {
 					menuScanAt = nowMs;
 					m = nullptr;
 					if (auto* cls = ClassByName("WBP_ModernMenu_SleepWait_C")) {
@@ -1805,13 +1816,13 @@ namespace hud
 							auto* item = arr->IndexToObject(i);
 							auto* o = item ? reinterpret_cast<UE::UObject*>(item->object) : nullptr;
 							// a template (class default or archetype, flags 0x30) is never the menu on screen
-							if (o && o->GetClass() == cls && (static_cast<std::int32_t>(o->objectFlags) & 0x30) == 0 && ObjProp(o, "Slot")) m = o;
+							if (o && o->GetClass() == cls && (static_cast<std::int32_t>(o->objectFlags) & 0x30) == 0 && WaitMenuPlaced(o)) m = o;
 						}
 						arr->UnlockInternalArray();
 					}
 					menu.Set(m);
 				}
-				now = m && ObjProp(m, "Slot") && Visibility(m) != kHidden && Visibility(m) != kCollapsed && Opacity(m) > 0.05f;
+				now = WaitMenuPlaced(m) && Visibility(m) != kHidden && Visibility(m) != kCollapsed && Opacity(m) > 0.05f;
 			}
 			if (now != up) logger::info("hud: the wait menu is {} - this mod's own elements {} and nothing is held visible", now ? "up" : "gone", now ? "hide" : "come back");
 			up = now;
