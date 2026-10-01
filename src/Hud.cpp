@@ -1770,7 +1770,55 @@ namespace hud
 			}
 		}
 
-		void Apply(const settings::Values& a_s, bool a_gameplay)
+		// The wait / sleep menu. Oblivion Remastered keeps menuMode at 1 (gameplay) through it and through the countdown of a
+		// wait, so "always visible" held the Level gauge on screen while the game's own HUD had gone (the owner, 2026-10-01:
+		// "the current level meter ... shows during wait time, which shouldn't happen"). Up when the menu's view model says
+		// bVisible AND its widget (WBP_ModernMenu_SleepWait_C) is live, in a parent, not hidden and not faded out - the view
+		// model alone read bVisible true at an idle capture. Read four times a second; the widget is searched for only while
+		// the view model says it is up, at most every second.
+		bool WaitMenuUp()
+		{
+			static ue::Handle vm, menu;
+			static ULONGLONG  readAt = 0, vmScanAt = 0, menuScanAt = 0;
+			static bool       up = false;
+			const ULONGLONG   nowMs = GetTickCount64();
+			if (nowMs - readAt < 250) return up;
+			readAt = nowMs;
+			auto* v = vm.Get();
+			if (!v && nowMs - vmScanAt >= 5000) {
+				vmScanAt = nowMs;
+				v = ue::FirstOf(ue::Class(L"/Script/Altar.VSleepWaitMenuViewModel"));
+				vm.Set(v);
+			}
+			const bool* vmVisible = v ? ue::At<bool>(v, Off(v->GetClass(), "bVisible")) : nullptr;
+			bool now = false;
+			if (vmVisible && *vmVisible) {
+				auto* m = menu.Get();
+				if ((!m || !ObjProp(m, "Slot")) && nowMs - menuScanAt >= 1000) {
+					menuScanAt = nowMs;
+					m = nullptr;
+					if (auto* cls = ClassByName("WBP_ModernMenu_SleepWait_C")) {
+						auto* arr = UE::FUObjectArray::GetSingleton();
+						arr->LockInternalArray();
+						const std::int32_t n = arr->GetObjectArrayNum();
+						for (std::int32_t i = 0; i < n && !m; ++i) {
+							auto* item = arr->IndexToObject(i);
+							auto* o = item ? reinterpret_cast<UE::UObject*>(item->object) : nullptr;
+							// a template (class default or archetype, flags 0x30) is never the menu on screen
+							if (o && o->GetClass() == cls && (static_cast<std::int32_t>(o->objectFlags) & 0x30) == 0 && ObjProp(o, "Slot")) m = o;
+						}
+						arr->UnlockInternalArray();
+					}
+					menu.Set(m);
+				}
+				now = m && ObjProp(m, "Slot") && Visibility(m) != kHidden && Visibility(m) != kCollapsed && Opacity(m) > 0.05f;
+			}
+			if (now != up) logger::info("hud: the wait menu is {} - this mod's own elements {} and nothing is held visible", now ? "up" : "gone", now ? "hide" : "come back");
+			up = now;
+			return up;
+		}
+
+		void Apply(const settings::Values& a_s, bool a_gameplay, bool a_hideOurs)
 		{
 			const auto& all = elements::All();
 			const std::vector<Rect> rects = (a_s.noOverlap || a_s.snapEdges) ? TrackedRects() : std::vector<Rect>(g_el.size());   // the neighbours' art, as measured
@@ -1906,7 +1954,7 @@ namespace hud
 				t.wrote = true;
 
 				// hide: Hidden, and what the game had put back when it is shown again
-				const bool   hide = a_s.enabled && e.hide;
+				const bool   hide = (a_s.enabled && e.hide) || (a_hideOurs && t.created);   // the wait menu: the game's HUD is gone
 				const auto   vis = Visibility(w);
 				if (hide) {
 					if (!t.hiddenByUs) {
@@ -2062,8 +2110,9 @@ namespace hud
 			Find(layout);
 		}
 		auto*      im = RE::InterfaceManager::GetInstance(false, false);
-		const bool gameplay = im && im->menuMode == 1;   // Oblivion Remastered: 1 is gameplay (logic library, menuMode entry)
-		Apply(settings::Snapshot(), gameplay);
+		const bool waiting = WaitMenuUp();
+		const bool gameplay = im && im->menuMode == 1 && !waiting;   // Oblivion Remastered: 1 is gameplay (logic library, menuMode entry)
+		Apply(settings::Snapshot(), gameplay, waiting);
 	}
 
 	bool OffsetRange(const ElementStatus& a_st, double a_withX, double a_withY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY)

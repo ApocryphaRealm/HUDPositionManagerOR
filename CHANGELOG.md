@@ -3,6 +3,14 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then the work sits under Unreleased.
 
+## Unreleased - 2026-10-01
+
+### Fixed
+- the Level gauge stayed on screen through the wait / sleep menu and a wait's countdown (the owner, 2026-10-01: "the
+  current level meter ... shows during wait time, which shouldn't happen"). The game keeps menuMode at 1 there, so
+  "always visible" kept holding it. While the wait menu is up (VSleepWaitMenuViewModel.bVisible and a live, shown
+  WBP_ModernMenu_SleepWait_C) this mod's own elements are hidden and nothing is held visible; they come back after.
+
 ## 1.0.0 - 2026-09-30 - working
 
 ### Release (2026-09-30)
