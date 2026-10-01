@@ -3,14 +3,16 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then the work sits under Unreleased.
 
-## Unreleased - 2026-10-01
+## 1.0.1 - 2026-10-01 - working
 
-- Fixed (untested): the Level gauge still showed while waiting - the wait menu was never seen as up. The owner: *"The level meter did not hide itself while waiting."* The live WBP_ModernMenu_SleepWait_C is a CommonUI activatable widget shown through Slate, so its UMG Slot is null (read in game with the menu open: Slot null, bIsActive true); WaitMenuUp only took a menu with a Slot. It now takes bIsActive too (WaitMenuPlaced), as Sundial Wait Menu does.
 ### Fixed
-- the Level gauge stayed on screen through the wait / sleep menu and a wait's countdown (the owner, 2026-10-01: "the
+- The Level gauge stayed on screen through the wait / sleep menu and a wait's countdown (the owner, 2026-10-01: "the
   current level meter ... shows during wait time, which shouldn't happen"). The game keeps menuMode at 1 there, so
   "always visible" kept holding it. While the wait menu is up (VSleepWaitMenuViewModel.bVisible and a live, shown
-  WBP_ModernMenu_SleepWait_C) this mod's own elements are hidden and nothing is held visible; they come back after.
+  WBP_ModernMenu_SleepWait_C) this mod's own elements are hidden and nothing is held visible; they come back after
+  (f0f58cb). The live menu is a CommonUI activatable widget shown through Slate with no UMG Slot (read in game with
+  the menu open: Slot null, bIsActive true), so it is also taken as up by bIsActive, as Sundial Wait Menu does
+  (9a5c737). Confirmed by the owner in game on 9a5c737: "the level meter does disappear with the wait menu on."
 
 ## 1.0.0 - 2026-09-30 - working
 
