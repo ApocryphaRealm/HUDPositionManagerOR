@@ -18,6 +18,16 @@ visibility".
   "Show every element" is on everything shows. DevBench hud.position: op set key show; forceCombat (-1/0/1) for
   testing without a fight; state reports in_combat.
 
+- The player's combat flag is read only in play and only while some element's Show uses it (a startup crash
+  sat 3 s after the first tick of a build that read it every frame, at the main menu; it did not reproduce on the
+  next launch, but nothing needs the answer there).
+
+### Tested (2026-10-03, in game, DevBench hud.position)
+- Show on the Health bar, all four cases PASS: Only in combat - hidden out of combat, shown in combat; Only out of
+  combat - hidden in combat, shown out of combat (forceCombat 0/1; the log names each transition). Restored to Always.
+- NOT yet seen: Free placement's slider range and the wrapped hints on the page - the PC was locked, so the page could
+  not be looked at or driven. The 3 s linger and the game's own combat flag are untested in a real fight.
+
 ### Fixed
 - The page's grey hint lines were not wrapped and ran past the panel's edge on a narrower window ("it would be nicer
   if the background was slightly larger so the buttons don't overlap the edges") - every hint now wraps to the panel.

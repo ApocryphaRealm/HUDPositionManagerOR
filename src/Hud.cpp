@@ -2149,7 +2149,12 @@ namespace hud
 		auto*      im = RE::InterfaceManager::GetInstance(false, false);
 		const bool waiting = WaitMenuUp();
 		const bool gameplay = im && im->menuMode == 1 && !waiting;   // Oblivion Remastered: 1 is gameplay (logic library, menuMode entry)
-		Apply(settings::Snapshot(), gameplay, waiting, InCombat());
+		// the player's combat flag only in play, and only while some element's Show depends on it: at the main menu or a
+		// load there is no player to ask (a startup crash on 2026-10-03 sat 3 s after the first tick of a build that asked
+		// every frame - not reproduced, but nothing needs the answer there), and an unused setting costs no call
+		const auto values = settings::Snapshot();
+		const bool needCombat = gameplay && std::ranges::any_of(values.elements, [](const settings::Element& e) { return e.show != 0; });
+		Apply(values, gameplay, waiting, needCombat && InCombat());
 	}
 
 	bool OffsetRange(const ElementStatus& a_st, double a_withX, double a_withY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY)
