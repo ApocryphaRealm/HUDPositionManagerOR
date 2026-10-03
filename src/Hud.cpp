@@ -1829,7 +1829,30 @@ namespace hud
 			return up;
 		}
 
-		void Apply(const settings::Values& a_s, bool a_gameplay, bool a_hideOurs)
+		// Combat, for an element's "Show" setting (2026-10-03). The player's own combat flag is a read, safe from this (the UE)
+		// thread (TesThread.h: only the inventory changes need the Gamebryo thread). It drops for a moment between foes and
+		// at the end of a fight, so the state leaves combat only after kCombatLingerMs without it: a bar set to show only in
+		// combat does not blink out mid-fight.
+		constexpr ULONGLONG kCombatLingerMs = 3000;
+		ULONGLONG           g_lastInCombat = 0;
+		std::atomic<bool>   g_inCombat{ false };
+		std::atomic<int>    g_forceCombat{ -1 };   // DevBench op set forceCombat: -1 the game's own state, 0 out of combat, 1 in combat
+
+		bool InCombat()
+		{
+			auto*           player = RE::PlayerCharacter::GetSingleton();
+			const ULONGLONG now = GetTickCount64();
+			if (player && player->IsInCombat(false)) g_lastInCombat = now;
+			const int  forced = g_forceCombat.load();
+			const bool in = forced >= 0 ? forced == 1 : (g_lastInCombat != 0 && now - g_lastInCombat < kCombatLingerMs);
+			if (in != g_inCombat.load()) {
+				g_inCombat = in;
+				logger::info("hud: the player is {} combat", in ? "in" : "out of");
+			}
+			return in;
+		}
+
+		void Apply(const settings::Values& a_s, bool a_gameplay, bool a_hideOurs, bool a_inCombat)
 		{
 			const auto& all = elements::All();
 			const std::vector<Rect> rects = (a_s.noOverlap || a_s.snapEdges) ? TrackedRects() : std::vector<Rect>(g_el.size());   // the neighbours' art, as measured
@@ -1965,7 +1988,10 @@ namespace hud
 				t.wrote = true;
 
 				// hide: Hidden, and what the game had put back when it is shown again
-				const bool   hide = (a_s.enabled && e.hide) || (a_hideOurs && t.created);   // the wait menu: the game's HUD is gone
+				// "Show": only in combat / only out of combat - in play only, and never while "Show every element" is on (the
+				// player is placing elements then and must see them all)
+				const bool   offContext = a_gameplay && !a_s.preview && ((e.show == 1 && !a_inCombat) || (e.show == 2 && a_inCombat));
+				const bool   hide = (a_s.enabled && (e.hide || offContext)) || (a_hideOurs && t.created);   // the wait menu: the game's HUD is gone
 				const auto   vis = Visibility(w);
 				if (hide) {
 					if (!t.hiddenByUs) {
@@ -2123,7 +2149,7 @@ namespace hud
 		auto*      im = RE::InterfaceManager::GetInstance(false, false);
 		const bool waiting = WaitMenuUp();
 		const bool gameplay = im && im->menuMode == 1 && !waiting;   // Oblivion Remastered: 1 is gameplay (logic library, menuMode entry)
-		Apply(settings::Snapshot(), gameplay, waiting);
+		Apply(settings::Snapshot(), gameplay, waiting, InCombat());
 	}
 
 	bool OffsetRange(const ElementStatus& a_st, double a_withX, double a_withY, double& a_minX, double& a_maxX, double& a_minY, double& a_maxY)
@@ -2223,6 +2249,12 @@ namespace hud
 												{ "rect", { s.vx, s.vy, s.vw, s.vh } }, { "drawn", s.drawn ? json{ s.dvx, s.dvy, s.dvw, s.dvh } : json(nullptr) }, { "viewport", { s.viewW, s.viewH } } }
 									  : json{ { "found", false } };
 		}
-		return { { "hud_found", HudFound() }, { "elements", els } };
+		return { { "hud_found", HudFound() }, { "in_combat", g_inCombat.load() }, { "force_combat", g_forceCombat.load() }, { "elements", els } };
+	}
+
+	void ForceCombat(int a_state)
+	{
+		g_forceCombat = a_state < 0 ? -1 : (a_state > 0 ? 1 : 0);
+		logger::info("hud: combat state {} (DevBench)", a_state < 0 ? "follows the game" : a_state > 0 ? "forced in" : "forced out");
 	}
 }

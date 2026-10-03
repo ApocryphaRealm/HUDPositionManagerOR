@@ -48,6 +48,7 @@ namespace settings
 				{ "General.bSnapEdges", a_v.snapEdges ? "1" : "0" },
 				{ "General.fSnapDistance", std::format("{:.0f}", a_v.snapDistance) },
 				{ "General.bPreview", a_v.preview ? "1" : "0" },
+				{ "General.bUnlocked", a_v.unlocked ? "1" : "0" },
 			};
 			const auto& all = elements::All();
 			for (std::size_t i = 0; i < all.size() && i < a_v.elements.size(); ++i) {
@@ -59,6 +60,7 @@ namespace settings
 				out.emplace_back(s + ".fLength", f(e.stretchX, 2));
 				out.emplace_back(s + ".fHeight", f(e.stretchY, 2));
 				out.emplace_back(s + ".bHide", e.hide ? "1" : "0");
+				out.emplace_back(s + ".iShow", std::to_string(e.show));
 				if (all[i].fades) {
 					out.emplace_back(s + ".bAlwaysVisible", e.alwaysVisible ? "1" : "0");
 				}
@@ -90,6 +92,7 @@ namespace settings
 				e.scale = std::clamp(e.scale, kScaleMin, kScaleMax);
 				e.stretchX = std::clamp(e.stretchX, kScaleMin, kScaleMax);
 				e.stretchY = std::clamp(e.stretchY, kScaleMin, kScaleMax);
+				e.show = std::clamp(e.show, 0, 2);
 				if (!elements::All()[i].fades) {
 					e.alwaysVisible = false;
 				}
@@ -212,6 +215,7 @@ namespace settings
 				if (const auto* s = Get(a_e, k + ".fLength")) e.stretchX = static_cast<float>(std::atof(s->c_str()));
 				if (const auto* s = Get(a_e, k + ".fHeight")) e.stretchY = static_cast<float>(std::atof(s->c_str()));
 				if (const auto* s = Get(a_e, k + ".bHide")) e.hide = Flag(*s);
+				if (const auto* s = Get(a_e, k + ".iShow")) e.show = std::atoi(s->c_str());
 				if (const auto* s = Get(a_e, k + ".bAlwaysVisible")) e.alwaysVisible = Flag(*s);
 				else if (all[i].createClass) e.alwaysVisible = true;   // this mod's own Level gauge: on unless the file says otherwise
 				if (const auto* s = Get(a_e, k + ".sMoveWith")) e.moveWith = *s;
@@ -220,7 +224,7 @@ namespace settings
 				if (const auto* s = Get(a_e, k + ".fPointsPerLength")) e.pointsPerLength = static_cast<float>(std::atof(s->c_str()));
 				if (const auto* s = Get(a_e, k + ".iGrow")) e.grow = std::atoi(s->c_str());
 				if (const auto* s = Get(a_e, k + ".fRadius")) e.radius = static_cast<float>(std::atof(s->c_str()));
-				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.stretchX != 1.0f || e.stretchY != 1.0f || e.hide || e.fill != 0) ? 1 : 0;
+				moved += (e.x != 0.0f || e.y != 0.0f || e.scale != 1.0f || e.stretchX != 1.0f || e.stretchY != 1.0f || e.hide || e.show != 0 || e.fill != 0) ? 1 : 0;
 			}
 			if (const auto* s = Get(a_e, "Group.sMembers")) {
 				a_v.group.members.clear();
@@ -248,6 +252,7 @@ namespace settings
 		std::scoped_lock l(g_valuesLock);
 		auto& v = g_values;
 		if (const auto* s = Get(entries, "General.bEnabled")) v.enabled = Flag(*s);
+		if (const auto* s = Get(entries, "General.bUnlocked")) v.unlocked = Flag(*s);
 		const int moved = ReadLayout(entries, v);
 		if (const auto* s = Get(entries, "Log.uLogLevel")) v.logLevel = std::atoi(s->c_str());
 		Clamp(v);

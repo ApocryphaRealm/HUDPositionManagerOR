@@ -3,6 +3,25 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then the work sits under Unreleased.
 
+## Unreleased
+
+Asked for by UpsidedownMonkey on Nexus (2026-10-03); the owner replied "Ill add an unlocked mode and context aware
+visibility".
+
+### Added
+- Free placement (Layout tab, [General] bUnlocked): the move sliders span the whole range, past the edges of the
+  screen, so an element can sit right at an edge or off screen. Off (the default), an element stops where its art
+  meets the screen's edge as before. Applies to the Combined widgets sliders too.
+- Show, per element ([<element>] iShow): Always (the game decides, the default), Only in combat, or Only out of
+  combat - combat hiding and idle / exploration hiding. Driven by the player's combat flag, which must stay clear
+  for 3 s before the HUD counts the fight as over, so an element does not blink between foes. Only in play; while
+  "Show every element" is on everything shows. DevBench hud.position: op set key show; forceCombat (-1/0/1) for
+  testing without a fight; state reports in_combat.
+
+### Fixed
+- The page's grey hint lines were not wrapped and ran past the panel's edge on a narrower window ("it would be nicer
+  if the background was slightly larger so the buttons don't overlap the edges") - every hint now wraps to the panel.
+
 ## 1.0.1 - 2026-10-01 - working
 
 ### Fixed

@@ -21,6 +21,9 @@ namespace settings
 		float       stretchX = 1.0f;       // [<key>] fLength - the scale along the element's width, on top of fScale (the bars)
 		float       stretchY = 1.0f;       // [<key>] fHeight - the same for its height
 		bool        hide = false;          // [<key>] bHide
+		// when the element shows in play (2026-10-03, UpsidedownMonkey: "combat hiding ... and idle (exploration) hiding"):
+		// 0 always (as the game decides), 1 only in combat, 2 only out of combat
+		int         show = 0;              // [<key>] iShow
 		bool        alwaysVisible = false; // [<key>] bAlwaysVisible - only for the elements the game fades on its own (the Level gauge: on when the file has no key)
 		std::string moveWith;              // [<key>] sMoveWith - another element's key, or empty
 		// the resource bars (2026-09-29): where the filled part is anchored - 0 the game's own, 1 left, 2 centre, 3 right
@@ -53,6 +56,7 @@ namespace settings
 		bool                 snapEdges = false;     // [General] bSnapEdges (off since the 0.1 % slider ticks, the owner 2026-09-29) - a placed widget's art edges pull onto another placed widget's (2026-09-29)
 		float                snapDistance = 6.0f;   // [General] fSnapDistance - how close an edge has to come, in layout units
 		bool                 preview = false;       // [General] bPreview - every element shown, event ones through their own show calls, until turned off (2026-09-29)
+		bool                 unlocked = false;      // [General] bUnlocked - "Free placement": the move sliders span the whole range, past the screen's edges (2026-10-03)
 		std::vector<Element> elements = std::vector<Element>(elements::Count());
 		Group                group;
 		int                  logLevel = 2;          // [Log] uLogLevel (rule 14: shipped at info)

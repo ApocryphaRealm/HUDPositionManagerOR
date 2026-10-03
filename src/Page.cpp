@@ -41,7 +41,14 @@ namespace page
 			return pressed;
 		}
 
-		void Hint(const char* a_text) { ImGui::TextDisabled("%s", a_text); }
+		// greyed and WRAPPED: an unwrapped hint ran past the panel's edge on a narrower window (UpsidedownMonkey, 2026-10-03:
+		// "it would be nicer if the background was slightly larger so the buttons don't overlap the edges")
+		void Hint(const char* a_text)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+			ImGui::TextWrapped("%s", a_text);
+			ImGui::PopStyleColor();
+		}
 
 		using precise::PercentSlider;
 		using precise::ScaleSlider;
@@ -198,7 +205,9 @@ namespace page
 			float  maxScale = settings::kScaleMax;
 			const double unitW = a_st.viewW > 0.0 ? a_st.viewW : 1920.0, unitH = a_st.viewH > 0.0 ? a_st.viewH : 1080.0;
 			const auto [withX, withY] = hud::MoveWithOffset(a_v, a_i);
-			if (hud::OffsetRange(a_all, a_i, a_v, withX / 100.0 * unitW, withY / 100.0 * unitH, e.x / 100.0 * unitW, e.y / 100.0 * unitH, minX, maxX, minY, maxY)) {
+			// Free placement (2026-10-03): the whole fixed range, past the screen's edges - the measured range stopped an element
+			// short of the edge and a slider at its end would not move ("I had to go in and out of the menu many times")
+			if (!a_v.unlocked && hud::OffsetRange(a_all, a_i, a_v, withX / 100.0 * unitW, withY / 100.0 * unitH, e.x / 100.0 * unitW, e.y / 100.0 * unitH, minX, maxX, minY, maxY)) {
 				minX = minX / unitW * 100.0;
 				maxX = maxX / unitW * 100.0;
 				minY = minY / unitH * 100.0;
@@ -245,6 +254,12 @@ namespace page
 				Hint(TR("HPM_StretchHint", "Length and Height stretch the bar on one side each, on top of Size."));
 			}
 			changed |= Switch((std::string(TR("HPM_Hide", "Hide")) + id + "h").c_str(), &e.hide);
+			if (!e.hide) {   // context-aware visibility (2026-10-03, UpsidedownMonkey: "combat hiding ... and idle (exploration) hiding")
+				const char* shows[3]{ TR("HPM_ShowAlways", "Always"), TR("HPM_ShowCombat", "Only in combat"), TR("HPM_ShowNoCombat", "Only out of combat") };
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+				changed |= ImGui::Combo((std::string(TR("HPM_Show", "Show")) + id + "v").c_str(), &e.show, shows, 3);
+				Hint(TR("HPM_ShowHint", "When this shows while you play. Only in combat: hidden while you explore, back as soon as a fight starts. Only out of combat: hidden during fights. While Show every element is on, everything shows."));
+			}
 			if (el.fades) {
 				changed |= Switch((std::string(TR("HPM_AlwaysOne", "Always visible")) + id + "a").c_str(), &e.alwaysVisible);
 				Hint(TR("HPM_AlwaysOneHint", "The game fades this out on its own. On: it stays shown while you play."));
@@ -313,7 +328,7 @@ namespace page
 			} else {
 				// the sliders' range: what every member can still travel (its own slider's range, less its own value), in percent
 				double minX = -settings::kMoveX, maxX = settings::kMoveX, minY = -settings::kMoveY, maxY = settings::kMoveY;
-				if (a_hud) {
+				if (a_hud && !a_v.unlocked) {   // Free placement: the whole fixed range, as on each element's tab
 					for (std::size_t i = 0; i < elements::Count(); ++i) {
 						if (!group.Has(elements::All()[i].key) || i >= a_all.size() || !a_all[i].found) continue;
 						const auto& st = a_all[i];
@@ -472,6 +487,11 @@ namespace page
 				logger::info("page: elements stop at each other's edges {}", v.noOverlap ? "on" : "off");
 			}
 			Hint(TR("HPM_NoOverlapHint", "On: a widget you move stops where its edge meets another widget you have placed, so the bars line up without decimal-point work. Widgets the game still places are never in the way. Off: widgets may overlap."));
+			if (Switch(TR("HPM_Unlocked", "Free placement"), &v.unlocked)) {
+				settings::Update([&](settings::Values& s) { s.unlocked = v.unlocked; });
+				logger::info("page: free placement {}", v.unlocked ? "on" : "off");
+			}
+			Hint(TR("HPM_UnlockedHint", "On: the move sliders go all the way, past the edges of the screen, so an element can sit right at an edge or off screen. Off: an element stops where its art meets the edge of the screen."));
 
 			ImGui::SeparatorText(TR("HPM_GroupVisibility", "HUD visibility"));
 			if (Switch(TR("HPM_AlwaysAll", "Always visible"), &v.alwaysVisible)) {

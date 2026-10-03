@@ -63,4 +63,5 @@ namespace hud
 	bool                       HudFound();   // any thread
 	std::vector<ElementStatus> Statuses();   // any thread, in elements::All() order
 	json                       State();      // any thread: the tool's answer
+	void                       ForceCombat(int a_state);   // test: -1 the game's own combat state, 0 out of combat, 1 in combat
 }

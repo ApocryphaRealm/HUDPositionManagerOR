@@ -23,11 +23,11 @@ namespace tool
 			for (std::size_t i = 0; i < elements::Count(); ++i) {
 				const auto& e = v.elements[i];
 				els[elements::All()[i].key] = { { "x", e.x }, { "y", e.y }, { "scale", e.scale }, { "length", e.stretchX }, { "height", e.stretchY }, { "hide", e.hide }, { "alwaysVisible", e.alwaysVisible },
-					{ "moveWith", e.moveWith }, { "fill", e.fill }, { "linkLength", e.linkLength }, { "pointsPerLength", e.pointsPerLength }, { "grow", e.grow }, { "radius", e.radius } };
+					{ "moveWith", e.moveWith }, { "fill", e.fill }, { "show", e.show }, { "linkLength", e.linkLength }, { "pointsPerLength", e.pointsPerLength }, { "grow", e.grow }, { "radius", e.radius } };
 			}
 			std::string members;
 			for (const auto& m : v.group.members) members += (members.empty() ? "" : ",") + m;
-			return { { "enabled", v.enabled }, { "groupMembers", members }, { "groupX", v.group.x }, { "groupY", v.group.y }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "snapEdges", v.snapEdges }, { "snapDistance", v.snapDistance }, { "preview", v.preview }, { "elements", els } };
+			return { { "enabled", v.enabled }, { "groupMembers", members }, { "groupX", v.group.x }, { "groupY", v.group.y }, { "alwaysVisible", v.alwaysVisible }, { "widgetCollision", v.noOverlap }, { "snapEdges", v.snapEdges }, { "snapDistance", v.snapDistance }, { "preview", v.preview }, { "unlocked", v.unlocked }, { "elements", els } };
 		}
 
 		std::string Set(const json& a_args)
@@ -39,9 +39,13 @@ namespace tool
 			}
 			const json& val = a_args["value"];
 			if (el.empty()) {
-				if ((key == "enabled" || key == "alwaysVisible" || key == "widgetCollision" || key == "snapEdges" || key == "preview") && val.is_boolean()) {
+				if ((key == "enabled" || key == "alwaysVisible" || key == "widgetCollision" || key == "snapEdges" || key == "preview" || key == "unlocked") && val.is_boolean()) {
 					const bool b = val.get<bool>();
-					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "widgetCollision" ? s.noOverlap : key == "snapEdges" ? s.snapEdges : key == "preview" ? s.preview : s.alwaysVisible) = b; });
+					settings::Update([&](settings::Values& s) { (key == "enabled" ? s.enabled : key == "widgetCollision" ? s.noOverlap : key == "snapEdges" ? s.snapEdges : key == "preview" ? s.preview : key == "unlocked" ? s.unlocked : s.alwaysVisible) = b; });
+					return {};
+				}
+				if (key == "forceCombat" && val.is_number()) {
+					hud::ForceCombat(val.get<int>());
 					return {};
 				}
 				if (key == "groupMembers" && val.is_string()) {
@@ -63,7 +67,7 @@ namespace tool
 					settings::Update([&](settings::Values& s) { s.snapDistance = val.get<float>(); });
 					return {};
 				}
-				return "without an element: enabled, alwaysVisible, widgetCollision, snapEdges, preview (bool), snapDistance, groupX, groupY (number), groupMembers (comma-separated keys)";
+				return "without an element: enabled, alwaysVisible, widgetCollision, snapEdges, preview, unlocked (bool), snapDistance, groupX, groupY, forceCombat (-1 the game's, 0 out, 1 in) (number), groupMembers (comma-separated keys)";
 			}
 			const int i = elements::IndexOf(el);
 			if (i < 0) {
@@ -78,6 +82,8 @@ namespace tool
 					e.fill = val.get<int>();
 				} else if (key == "grow" && val.is_number()) {
 					e.grow = val.get<int>();
+				} else if (key == "show" && val.is_number()) {
+					e.show = val.get<int>();
 				} else if ((key == "hide" || key == "alwaysVisible" || key == "linkLength") && val.is_boolean()) {
 					(key == "hide" ? e.hide : key == "linkLength" ? e.linkLength : e.alwaysVisible) = val.get<bool>();
 				} else if (key == "moveWith" && val.is_string()) {
@@ -86,7 +92,7 @@ namespace tool
 					ok = false;
 				}
 			});
-			return ok ? std::string() : "element keys: x, y, scale, length, height, pointsPerLength, radius, fill, grow (number), hide, alwaysVisible, linkLength (bool), moveWith (element key or \"\")";
+			return ok ? std::string() : "element keys: x, y, scale, length, height, pointsPerLength, radius, fill, grow, show (0 always, 1 only in combat, 2 only out of combat) (number), hide, alwaysVisible, linkLength (bool), moveWith (element key or \"\")";
 		}
 
 		void Tool(void*, const char* a_args, void* a_sink, TestBenchAPI::WriteFn a_write)
@@ -145,7 +151,7 @@ namespace tool
 		g_tb = get ? static_cast<TestBenchAPI::ITestBenchInterface001*>(get(1)) : nullptr;
 		if (!g_tb) return false;
 		g_tb->RegisterTool("hud.position",
-			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, length, height, fill, linkLength, pointsPerLength, hide, alwaysVisible, moveWith; without element: enabled, alwaysVisible, groupMembers, groupX, groupY; op reset {element?}; op presets - the preset files; op savePreset {name, author?, note?} - the current layout as a preset; op loadPreset {path}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
+			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, length, height, fill, show (0 always, 1 only in combat, 2 only out of combat), linkLength, pointsPerLength, hide, alwaysVisible, moveWith; without element: enabled, alwaysVisible, unlocked, groupMembers, groupX, groupY, forceCombat (-1 the game's, 0 out, 1 in - test); op reset {element?}; op presets - the preset files; op savePreset {name, author?, note?} - the current layout as a preset; op loadPreset {path}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
 			&Tool, nullptr);
 		logger::info("TestBench tool registered: hud.position");
 		return true;

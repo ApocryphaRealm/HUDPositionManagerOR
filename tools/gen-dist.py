@@ -975,6 +975,37 @@ NEW = {
         "Wskaźnik wykrycia",
         "Ukazatel odhalení",
     ],
+    "HPM_Unlocked": ["Free placement", "自由配置", "자유 배치", "自由放置", "Свободное размещение", "Freie Platzierung", "Placement libre", "Colocación libre", "Posizionamento libero", "Swobodne rozmieszczenie", "Volné umístění"],
+    "HPM_UnlockedHint": [
+        "On: the move sliders go all the way, past the edges of the screen, so an element can sit right at an edge or off screen. Off: an element stops where its art meets the edge of the screen.",
+        "オン: 移動スライダーが画面の端を越えて最後まで動くため、要素を端ぴったりや画面外に置けます。オフ: 要素は絵柄が画面の端に触れたところで止まります。",
+        "켜기: 이동 슬라이더가 화면 가장자리를 넘어 끝까지 움직여 요소를 가장자리에 딱 붙이거나 화면 밖에 둘 수 있습니다. 끄기: 요소는 그림이 화면 가장자리에 닿는 곳에서 멈춥니다.",
+        "开启：移动滑块可一直移动并越过屏幕边缘，元素可以紧贴边缘或移出屏幕。关闭：元素在其图案碰到屏幕边缘时停止。",
+        "Вкл.: ползунки перемещения идут до конца, за края экрана, так что элемент можно прижать к краю или убрать за экран. Выкл.: элемент останавливается, когда его изображение касается края экрана.",
+        "An: Die Verschiebe-Regler gehen ganz durch, über die Bildschirmränder hinaus - ein Element kann genau am Rand oder außerhalb des Bildschirms sitzen. Aus: Ein Element stoppt, wo seine Grafik den Bildschirmrand erreicht.",
+        "Activé : les curseurs de déplacement vont jusqu'au bout, au-delà des bords de l'écran, pour placer un élément contre un bord ou hors de l'écran. Désactivé : un élément s'arrête là où son image touche le bord de l'écran.",
+        "Activado: los deslizadores de movimiento llegan hasta el final, más allá de los bordes de la pantalla, para dejar un elemento justo en un borde o fuera de la pantalla. Desactivado: un elemento se detiene donde su imagen toca el borde de la pantalla.",
+        "Attivo: i cursori di spostamento arrivano fino in fondo, oltre i bordi dello schermo, così un elemento può stare proprio sul bordo o fuori dallo schermo. Disattivo: un elemento si ferma dove la sua grafica tocca il bordo dello schermo.",
+        "Wł.: suwaki przesuwania idą do końca, poza krawędzie ekranu, więc element może stać tuż przy krawędzi albo poza ekranem. Wył.: element zatrzymuje się tam, gdzie jego grafika dotyka krawędzi ekranu.",
+        "Zapnuto: posuvníky přesunu jdou až na konec, za okraje obrazovky, takže prvek může stát přímo u okraje nebo mimo obrazovku. Vypnuto: prvek se zastaví tam, kde jeho grafika narazí na okraj obrazovky.",
+    ],
+    "HPM_Show": ["Show", "表示", "표시", "显示", "Показывать", "Anzeigen", "Afficher", "Mostrar", "Mostra", "Pokazuj", "Zobrazit"],
+    "HPM_ShowAlways": ["Always", "常に", "항상", "始终", "Всегда", "Immer", "Toujours", "Siempre", "Sempre", "Zawsze", "Vždy"],
+    "HPM_ShowCombat": ["Only in combat", "戦闘中のみ", "전투 중에만", "仅在战斗中", "Только в бою", "Nur im Kampf", "Seulement en combat", "Solo en combate", "Solo in combattimento", "Tylko w walce", "Jen v boji"],
+    "HPM_ShowNoCombat": ["Only out of combat", "戦闘外のみ", "전투 밖에서만", "仅在非战斗时", "Только вне боя", "Nur außerhalb des Kampfes", "Seulement hors combat", "Solo fuera de combate", "Solo fuori combattimento", "Tylko poza walką", "Jen mimo boj"],
+    "HPM_ShowHint": [
+        "When this shows while you play. Only in combat: hidden while you explore, back as soon as a fight starts. Only out of combat: hidden during fights. While Show every element is on, everything shows.",
+        "プレイ中にこれを表示するタイミング。戦闘中のみ: 探索中は隠れ、戦闘が始まるとすぐ戻ります。戦闘外のみ: 戦闘中は隠れます。「すべての要素を表示」がオンの間はすべて表示されます。",
+        "플레이 중 이것이 보이는 때. 전투 중에만: 탐험 중에는 숨겨지고 전투가 시작되면 바로 돌아옵니다. 전투 밖에서만: 전투 중에는 숨겨집니다. '모든 요소 표시'가 켜져 있는 동안에는 모두 보입니다.",
+        "游戏时何时显示此项。仅在战斗中：探索时隐藏，战斗一开始就重新显示。仅在非战斗时：战斗中隐藏。“显示所有元素”开启时，全部显示。",
+        "Когда это видно во время игры. Только в бою: скрыто, пока вы исследуете, и появляется, как только начинается бой. Только вне боя: скрыто во время боя. Пока включено «Показывать все элементы», видно всё.",
+        "Wann dies beim Spielen zu sehen ist. Nur im Kampf: beim Erkunden ausgeblendet, sobald ein Kampf beginnt wieder da. Nur außerhalb des Kampfes: während Kämpfen ausgeblendet. Solange „Alle Elemente zeigen“ an ist, ist alles zu sehen.",
+        "Quand ceci s'affiche pendant le jeu. Seulement en combat : masqué pendant l'exploration, de retour dès qu'un combat commence. Seulement hors combat : masqué pendant les combats. Tant que « Afficher tous les éléments » est activé, tout s'affiche.",
+        "Cuándo se muestra esto mientras juegas. Solo en combate: oculto mientras exploras, vuelve en cuanto empieza una pelea. Solo fuera de combate: oculto durante las peleas. Mientras «Mostrar todos los elementos» está activado, se muestra todo.",
+        "Quando appare mentre giochi. Solo in combattimento: nascosto mentre esplori, torna appena inizia uno scontro. Solo fuori combattimento: nascosto durante gli scontri. Finché «Mostra ogni elemento» è attivo, si vede tutto.",
+        "Kiedy to widać podczas gry. Tylko w walce: ukryte podczas eksploracji, wraca, gdy tylko zaczyna się walka. Tylko poza walką: ukryte podczas walk. Gdy „Pokazuj wszystkie elementy” jest włączone, widać wszystko.",
+        "Kdy se to při hraní zobrazuje. Jen v boji: skryto při průzkumu, vrátí se, jakmile začne boj. Jen mimo boj: skryto během bojů. Dokud je zapnuto „Zobrazit všechny prvky“, zobrazí se vše.",
+    ],
 }
 
 
@@ -1045,10 +1076,13 @@ ini = [
     "bPreview=0",
     "; HUD widget collision: 1 = a widget you move stops where its edge meets another widget you have placed (a game-placed one is never in the way); 0 = widgets may overlap.",
     "bWidgetCollision=0",
+    "; Free placement: 1 = the move sliders go all the way, past the screen's edges (an element can sit off screen); 0 = an element stops where its art meets the edge.",
+    "bUnlocked=0",
     "",
 ]
 for key, fades, bar, stat in ELEMENTS:
-    ini += ["[%s]" % key, "fX=0", "fY=0", "fScale=1.00", "fLength=1.00", "fHeight=1.00", "bHide=0"]
+    ini += ["[%s]" % key, "fX=0", "fY=0", "fScale=1.00", "fLength=1.00", "fHeight=1.00", "bHide=0",
+            "; Show: 0 = always (as the game decides), 1 = only in combat, 2 = only out of combat.", "iShow=0"]
     if fades:
         ini.append("bAlwaysVisible=1" if key == "Level" else "bAlwaysVisible=0")
     ini.append("sMoveWith=")
