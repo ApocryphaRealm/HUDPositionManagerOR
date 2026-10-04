@@ -64,6 +64,8 @@ namespace page
 			double minX = 0, maxX = 0, minY = 0, maxY = 0;
 		};
 		std::vector<HeldRange> g_held(elements::Count());
+		std::mutex             g_rangeLock;   // the page draws on the render thread, DevBench reads on its listener
+		OpenRange              g_lastRange;
 		HeldRange              g_heldGroup;
 
 		// ---------------------------------------------------------------- the Presets tab
@@ -227,6 +229,10 @@ namespace page
 			auto& held = g_held[a_i];
 			if (held.x) { minX = held.minX; maxX = held.maxX; } else { held.minX = minX; held.maxX = maxX; }
 			if (held.y) { minY = held.minY; maxY = held.maxY; } else { held.minY = minY; held.maxY = maxY; }
+			{
+				std::scoped_lock l(g_rangeLock);
+				g_lastRange = { el.key, minX, maxX, minY, maxY, a_v.unlocked, true };
+			}
 			e.x = std::clamp(e.x, static_cast<float>(minX), static_cast<float>(maxX));
 			e.y = std::clamp(e.y, static_cast<float>(minY), static_cast<float>(maxY));
 			if (el.createNative) {   // the two indicators: a ring about the screen's centre - its radius first
@@ -550,6 +556,12 @@ namespace page
 			}
 			ImGui::EndTabBar();
 		}
+	}
+
+	OpenRange LastOpenRange()
+	{
+		std::scoped_lock l(g_rangeLock);
+		return g_lastRange;
 	}
 
 	void Register()

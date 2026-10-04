@@ -5,6 +5,7 @@
 // groupMembers (comma-separated keys), groupX, groupY); op reset {element?} - one element or every element.
 // Every accessor used here is thread-safe, so the handler answers on TestBench's own thread.
 #include "Hud.h"
+#include "Page.h"
 #include "Settings.h"
 #include "TestBenchAPI.h"
 
@@ -118,6 +119,12 @@ namespace tool
 				Write(a_sink, a_write, { { "ok", true }, { "settings", SettingsJson() } });
 				return;
 			}
+			if (op == "range") {   // the open element tab's move-slider range (Free placement widens it)
+				const auto r = page::LastOpenRange();
+				Write(a_sink, a_write, r.valid ? json{ { "ok", true }, { "element", r.element }, { "unlocked", r.unlocked }, { "minX", r.minX }, { "maxX", r.maxX }, { "minY", r.minY }, { "maxY", r.maxY } }
+				                               : json{ { "ok", false }, { "error", "no element tab drawn yet - open the page's Layout tab" } });
+				return;
+			}
 			if (op == "presets") {
 				json list = json::array();
 				for (const auto& p : settings::ListPresets()) list.push_back({ { "path", p.path.string() }, { "name", p.name }, { "author", p.author }, { "note", p.note } });
@@ -151,7 +158,7 @@ namespace tool
 		g_tb = get ? static_cast<TestBenchAPI::ITestBenchInterface001*>(get(1)) : nullptr;
 		if (!g_tb) return false;
 		g_tb->RegisterTool("hud.position",
-			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, length, height, fill, show (0 always, 1 only in combat, 2 only out of combat), linkLength, pointsPerLength, hide, alwaysVisible, moveWith; without element: enabled, alwaysVisible, unlocked, groupMembers, groupX, groupY, forceCombat (-1 the game's, 0 out, 1 in - test); op reset {element?}; op presets - the preset files; op savePreset {name, author?, note?} - the current layout as a preset; op loadPreset {path}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
+			R"({"description":"HUD Position Manager: op state (default) - switches, and per element settings / found / widget / base and applied transform / opacity / visibility / forced visible; op set {element?, key, value} - element keys x, y, scale, length, height, fill, show (0 always, 1 only in combat, 2 only out of combat), linkLength, pointsPerLength, hide, alwaysVisible, moveWith; without element: enabled, alwaysVisible, unlocked, groupMembers, groupX, groupY, forceCombat (-1 the game's, 0 out, 1 in - test); op reset {element?}; op range - the move sliders' range on the element tab the page last drew (percent); op presets - the preset files; op savePreset {name, author?, note?} - the current layout as a preset; op loadPreset {path}","inputSchema":{"type":"object","properties":{"op":{"type":"string"},"element":{"type":"string"},"key":{"type":"string"},"value":{}}}})",
 			&Tool, nullptr);
 		logger::info("TestBench tool registered: hud.position");
 		return true;

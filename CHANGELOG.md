@@ -17,6 +17,8 @@ visibility".
   for 3 s before the HUD counts the fight as over, so an element does not blink between foes. Only in play; while
   "Show every element" is on everything shows. DevBench hud.position: op set key show; forceCombat (-1/0/1) for
   testing without a fight; state reports in_combat.
+- DevBench hud.position op range: the move sliders' range on the element tab the page last drew, in percent, with
+  the Free placement switch it was drawn under - so the range can be checked without reading the page.
 
 - The player's combat flag is read only in play and only while some element's Show uses it (a startup crash
   sat 3 s after the first tick of a build that read it every frame, at the main menu; it did not reproduce on the
@@ -25,8 +27,13 @@ visibility".
 ### Tested (2026-10-03, in game, DevBench hud.position)
 - Show on the Health bar, all four cases PASS: Only in combat - hidden out of combat, shown in combat; Only out of
   combat - hidden in combat, shown out of combat (forceCombat 0/1; the log names each transition). Restored to Always.
-- NOT yet seen: Free placement's slider range and the wrapped hints on the page - the PC was locked, so the page could
-  not be looked at or driven. The 3 s linger and the game's own combat flag are untested in a real fight.
+
+### Tested (2026-10-04, in game, DevBench hud.position op range + gamelink frames)
+- Free placement, Magicka's tab on the Layout page: off - the move sliders run x -27.3..61.3, y -88.5..10.0 (the
+  measured screen edge); on - x and y -100..100. Back off, the layout restored from a preset saved beforehand.
+- The wrapped hints: on the Layout tab every grey hint breaks inside the panel, none runs past its edge.
+- NOT yet seen: the Combined widgets sliders' range with Free placement on (same switch, not measured), the 3 s
+  linger and the game's own combat flag in a real fight.
 
 ### Fixed
 - The page's grey hint lines were not wrapped and ran past the panel's edge on a narrower window ("it would be nicer
