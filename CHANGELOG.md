@@ -3,7 +3,7 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then the work sits under Unreleased.
 
-## Unreleased
+## 1.0.2 - 2026-10-04 - working
 
 Asked for by UpsidedownMonkey on Nexus (2026-10-03); the owner replied "Ill add an unlocked mode and context aware
 visibility".
